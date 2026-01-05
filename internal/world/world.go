@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 type Msg interface{ isMsg() }
@@ -95,22 +95,28 @@ func (w *World) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{15, 15, 18, 255})
 
 	// simple camera centered on player
-	sw, sh := screen.Size()
+	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
 	camX := float32(sw)/2 - w.Player.Pos.X
 	camY := float32(sh)/2 - w.Player.Pos.Y
 
 	// draw world bounds
-	ebitenutil.DrawRect(screen, float64(camX), float64(camY), float64(w.W), float64(w.H), color.RGBA{30, 30, 36, 255})
+	vector.FillRect(
+		screen,
+		camX, camY,
+		w.W, w.H,
+		color.RGBA{30, 30, 36, 255},
+		false, // anti-alias
+	)
 
 	// draw player
-	const r = 10
-	ebitenutil.DrawRect(
+	const r float32 = 10
+	vector.FillCircle(
 		screen,
-		float64(camX+w.Player.Pos.X-r),
-		float64(camY+w.Player.Pos.Y-r),
-		float64(r*2),
-		float64(r*2),
+		camX+w.Player.Pos.X-r,
+		camY+w.Player.Pos.Y-r,
+		r,
 		color.RGBA{80, 200, 120, 255},
+		false,
 	)
 }
 

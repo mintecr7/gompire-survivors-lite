@@ -1,9 +1,9 @@
 package game
 
 import (
-	"time"
-
+	"fmt"
 	"horde-lab/internal/world"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -38,6 +38,10 @@ func (g *Game) Update() error {
 	g.accum += frameDt
 
 	in := ReadInput()
+	if in.Down || in.Left || in.Right || in.Up {
+
+		fmt.Println("input values", in)
+	}
 
 	// fixed-step simulation
 	for g.accum >= g.fixedStep {
