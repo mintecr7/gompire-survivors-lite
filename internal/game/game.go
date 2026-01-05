@@ -1,7 +1,7 @@
 package game
 
 import (
-	"fmt"
+	// "fmt"
 	"horde-lab/internal/world"
 	"time"
 
@@ -38,10 +38,10 @@ func (g *Game) Update() error {
 	g.accum += frameDt
 
 	in := ReadInput()
-	if in.Down || in.Left || in.Right || in.Up {
+	// if in.Down || in.Left || in.Right || in.Up {
 
-		fmt.Println("input values", in)
-	}
+	// 	fmt.Println("input values", in)
+	// }
 
 	// fixed-step simulation
 	for g.accum >= g.fixedStep {

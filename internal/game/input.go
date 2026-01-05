@@ -1,13 +1,13 @@
 package game
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"horde-lab/internal/shared/input"
 
-type InputState struct {
-	Up, Down, Left, Right bool
-}
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
-func ReadInput() InputState {
-	return InputState{
+func ReadInput() input.State {
+	return input.State{
 		Up:    ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyArrowUp),
 		Down:  ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyArrowDown),
 		Left:  ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyArrowLeft),
