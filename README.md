@@ -75,8 +75,6 @@ A playable 5–10 minute loop:
 - Rendering/input: **Ebiten** (likely), but kept modular so the core simulation can run headless.
 - Embeddings/networking are not part of this repo (those come later in the successor project).
 
-> Note: If you prefer a different rendering approach (SDL bindings, Raylib-Go, etc.), the architecture still holds.
-
 ---
 
 ## Suggested project layout
