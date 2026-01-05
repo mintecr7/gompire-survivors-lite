@@ -79,11 +79,10 @@ func (w *World) Enqueue(m Msg) {
 }
 
 func (w *World) Tick(dt float32) {
-	// process inbox (v0.1: only input)
+
 	for _, m := range w.inbox {
 		switch msg := m.(type) {
 		case MsgInput:
-			// input is from internal/game; keep loose typing for now
 			w.applyInput(dt, msg.Input)
 		}
 	}
