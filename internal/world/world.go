@@ -30,25 +30,43 @@ type World struct {
 	spawnTimer float32
 	spawnEvery float32
 	rng        *rand.Rand
+
+	// attack visualization
+	LastAttackPos Vec2
+	LastAttackT   float32
 }
 
 type Player struct {
 	Pos   Vec2
 	Speed float32
+
+	// combat
+	AttackCooldown float32 // seconds
+	AttackTimer    float32 // counts down to 0
+	AttackRange    float32
+	Damage         float32
 }
 
 type Enemy struct {
 	Pos   Vec2
 	Speed float32
 	R     float32
+
+	// combat
+	HP    float32
+	MaxHp float32
+	HitT  float32 // hit flash timer (seconds)
 }
 
 func NewWorld(w, h float32) *World {
 	return &World{
 		W: w, H: h,
 		Player: Player{
-			Pos:   Vec2{X: w / 2, Y: h / 2},
-			Speed: 260,
+			Pos:            Vec2{X: w / 2, Y: h / 2},
+			Speed:          260,
+			AttackCooldown: 0.45,
+			AttackRange:    180,
+			Damage:         25,
 		},
 		Enemies:    make([]Enemy, 0, 256),
 		spawnEvery: 0.75,
@@ -61,18 +79,25 @@ func (w *World) Enqueue(m Msg) {
 }
 
 func (w *World) Tick(dt float32) {
-	// process inbox (v0.1: only input)
+
 	for _, m := range w.inbox {
 		switch msg := m.(type) {
 		case MsgInput:
-			// input is from internal/game; keep loose typing for now
 			w.applyInput(dt, msg.Input)
 		}
 	}
-	w.updateSpawning(dt)
-	w.updateEnemies(dt)
+	if w.LastAttackT > 0 {
+		w.LastAttackT -= dt
+		if w.LastAttackT < 0 {
+			w.LastAttackT = 0
+		}
+	}
 
 	w.inbox = w.inbox[:0]
+	w.updateSpawning(dt)
+	w.updateEnemies(dt)
+	w.updateCombat(dt)
+
 }
 
 func (w *World) applyInput(dt float32, in input.State) {
@@ -123,13 +148,33 @@ func (w *World) Draw(screen *ebiten.Image) {
 		false, // anti-alias
 	)
 
+	// draw enemies
 	for _, e := range w.Enemies {
+		clr := color.RGBA{220, 80, 80, 255}
+		if e.HitT > 0 {
+			clr = color.RGBA{255, 220, 220, 255}
+		}
 		vector.FillRect(
 			screen,
 			camX+e.Pos.X,
 			camY+e.Pos.Y,
 			e.R, e.R,
-			color.RGBA{220, 80, 80, 255},
+			clr,
+			false,
+		)
+	}
+
+	// draw attack line
+	if w.LastAttackT > 0 {
+		alpha := uint8(255 * w.LastAttackT)
+		vector.StrokeLine(
+			screen,
+			camX+w.Player.Pos.X,
+			camY+w.Player.Pos.Y,
+			camX+w.LastAttackPos.X,
+			camY+w.LastAttackPos.Y,
+			2, // line width
+			color.RGBA{255, 255, 100, alpha},
 			false,
 		)
 	}
@@ -160,7 +205,6 @@ func (w *World) updateSpawning(dt float32) {
 
 func (w *World) spawnEnemyNearPlayer() {
 	// Spawn in a ring around the player, slightly off-screen-ish.
-	// Tune radius based on your window size; this is a simple start.
 	const spawnRadius float32 = 420
 
 	ang := w.rng.Float32() * 2 * math.Pi
@@ -177,8 +221,10 @@ func (w *World) spawnEnemyNearPlayer() {
 
 	w.Enemies = append(w.Enemies, Enemy{
 		Pos:   pos,
-		Speed: 120,
+		Speed: 220,
 		R:     9,
+		MaxHp: 75,
+		HP:    75,
 	})
 }
 
@@ -197,4 +243,83 @@ func (w *World) updateEnemies(dt float32) {
 		e.Pos.X = clamp(e.Pos.X, 0, w.W)
 		e.Pos.Y = clamp(e.Pos.Y, 0, w.H)
 	}
+}
+
+func (w *World) updateCombat(dt float32) {
+
+	// update hit flashes
+	for i := range w.Enemies {
+		if w.Enemies[i].HitT > 0 {
+			w.Enemies[i].HitT -= dt
+			if w.Enemies[i].HitT < 0 {
+				w.Enemies[i].HitT = 0
+			}
+		}
+	}
+
+	// cooldown timer
+	if w.Player.AttackTimer > 0 {
+		w.Player.AttackTimer -= dt
+		if w.Player.AttackTimer > 0 {
+			return
+		}
+	}
+
+	// ready to attack: find nearest enemy in range
+	idx := w.nearestEnemyInRange(w.Player.Pos, w.Player.AttackRange)
+
+	if idx < 0 {
+		return
+	}
+
+	// perform attack
+	w.Player.AttackTimer = w.Player.AttackCooldown
+
+	e := &w.Enemies[idx]
+
+	e.HP -= w.Player.Damage
+	e.HitT = 1.10 // flash duration
+	w.LastAttackPos = e.Pos
+	w.LastAttackT = 0.08
+
+	if e.HP <= 0 {
+		w.removeEnemyAt(idx)
+	}
+
+}
+
+func (w *World) nearestEnemyInRange(p Vec2, rng float32) int {
+	if len(w.Enemies) == 0 {
+		return -1
+	}
+
+	r2 := rng * rng
+	best := -1
+	bestD2 := float32(0)
+
+	for i := range w.Enemies {
+		d := w.Enemies[i].Pos.Sub(p)
+		d2 := d.X*d.X + d.Y*d.Y
+
+		if d2 > r2 {
+			continue
+		}
+
+		if best == -1 || d2 < bestD2 {
+			best = i
+			bestD2 = d2
+		}
+	}
+
+	return best
+}
+
+func (w *World) removeEnemyAt(idx int) {
+	last := len(w.Enemies) - 1
+
+	if idx != last {
+		w.Enemies[idx] = w.Enemies[last]
+	}
+
+	w.Enemies = w.Enemies[:last]
 }
