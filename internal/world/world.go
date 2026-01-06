@@ -2,28 +2,36 @@ package world
 
 import (
 	"fmt"
-	"horde-lab/internal/shared/input"
 	"image/color"
 	"math"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+
+	"horde-lab/internal/shared/input"
 )
 
 type Msg interface{ isMsg() }
 
 type MsgInput struct{ Input input.State }
 
+type XPOrb struct {
+	Pos   Vec2
+	R     float32
+	Value float32
+}
+
 func (MsgInput) isMsg() {}
 
 type World struct {
 	W, H float32
 
-	inbox []Msg
+	inbox []Msg // TODO: use channel
 
-	Player Player
-
+	Orbs    []XPOrb
+	Player  Player
 	Enemies []Enemy
 
 	// spawning
@@ -34,17 +42,33 @@ type World struct {
 	// attack visualization
 	LastAttackPos Vec2
 	LastAttackT   float32
+
+	// run state
+	TimeSurvived float32
+	GameOver     bool
 }
 
 type Player struct {
 	Pos   Vec2
 	Speed float32
+	R     float32
 
-	// combat
+	// combat (auto attack)
 	AttackCooldown float32 // seconds
 	AttackTimer    float32 // counts down to 0
 	AttackRange    float32
 	Damage         float32
+
+	// health / damage taken
+	HP           float32
+	MaxHP        float32
+	HurtCooldown float32 // invulnerable window after taking damage
+	HurtTimer    float32
+
+	// progression
+	Level    int
+	XP       float32
+	XPToNext float32
 }
 
 type Enemy struct {
@@ -56,19 +80,33 @@ type Enemy struct {
 	HP    float32
 	MaxHp float32
 	HitT  float32 // hit flash timer (seconds)
+
+	TouchDamage float32 // damage when colliding with player
 }
 
 func NewWorld(w, h float32) *World {
+	pl := Player{
+		Pos:   Vec2{X: w / 2, Y: h / 2},
+		Speed: 260,
+		R:     10,
+
+		AttackCooldown: 0.45,
+		AttackRange:    180,
+		Damage:         35,
+
+		MaxHP:        100,
+		HP:           100,
+		HurtCooldown: 0.35,
+
+		Level:    1,
+		XP:       0,
+		XPToNext: xpTpNext(1),
+	}
 	return &World{
 		W: w, H: h,
-		Player: Player{
-			Pos:            Vec2{X: w / 2, Y: h / 2},
-			Speed:          260,
-			AttackCooldown: 0.45,
-			AttackRange:    180,
-			Damage:         25,
-		},
+		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
+		Orbs:       make([]XPOrb, 0, 256),
 		spawnEvery: 0.75,
 		rng:        rand.New(rand.NewSource(1)),
 	}
@@ -79,13 +117,15 @@ func (w *World) Enqueue(m Msg) {
 }
 
 func (w *World) Tick(dt float32) {
-
+	// Allow input processing even if game is over (e.g., restart, game options/setting for later)
 	for _, m := range w.inbox {
 		switch msg := m.(type) {
 		case MsgInput:
 			w.applyInput(dt, msg.Input)
 		}
 	}
+	w.inbox = w.inbox[:0]
+
 	if w.LastAttackT > 0 {
 		w.LastAttackT -= dt
 		if w.LastAttackT < 0 {
@@ -93,10 +133,18 @@ func (w *World) Tick(dt float32) {
 		}
 	}
 
-	w.inbox = w.inbox[:0]
+	if w.GameOver {
+		return
+	}
+
+	w.TimeSurvived += dt
+
 	w.updateSpawning(dt)
 	w.updateEnemies(dt)
 	w.updateCombat(dt)
+	w.updateContactDamage(dt)
+	w.updateXPOrbs(dt)
+	w.updateLevelUp()
 
 }
 
@@ -148,6 +196,18 @@ func (w *World) Draw(screen *ebiten.Image) {
 		false, // anti-alias
 	)
 
+	// XP orbs
+	for _, o := range w.Orbs {
+		vector.FillCircle(
+			screen,
+			camX+o.Pos.X,
+			camY+o.Pos.Y,
+			o.R,
+			color.RGBA{240, 210, 80, 255},
+			false,
+		)
+	}
+
 	// draw enemies
 	for _, e := range w.Enemies {
 		clr := color.RGBA{220, 80, 80, 255}
@@ -180,15 +240,29 @@ func (w *World) Draw(screen *ebiten.Image) {
 	}
 
 	// draw player
-	const r float32 = 10
+	pclr := color.RGBA{80, 200, 120, 255}
 	vector.FillCircle(
 		screen,
-		camX+w.Player.Pos.X-r,
-		camY+w.Player.Pos.Y-r,
-		r,
-		color.RGBA{80, 200, 120, 255},
+		camX+w.Player.Pos.X,
+		camY+w.Player.Pos.Y,
+		w.Player.R,
+		pclr,
 		false,
 	)
+
+	hud := fmt.Sprintf(
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nEnemies: %d  Orbs: %d\nTime: %.1fs",
+		w.Player.HP, w.Player.MaxHP,
+		w.Player.Level, w.Player.XP, w.Player.XPToNext,
+		len(w.Enemies), len(w.Orbs),
+		w.TimeSurvived,
+	)
+
+	ebitenutil.DebugPrintAt(screen, hud, 8, 8)
+
+	if w.GameOver {
+		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
+	}
 }
 
 func clamp(v, lo, hi float32) float32 {
@@ -220,11 +294,12 @@ func (w *World) spawnEnemyNearPlayer() {
 	pos.Y = clamp(pos.Y, 0, w.H)
 
 	w.Enemies = append(w.Enemies, Enemy{
-		Pos:   pos,
-		Speed: 220,
-		R:     9,
-		MaxHp: 75,
-		HP:    75,
+		Pos:         pos,
+		Speed:       220,
+		R:           9,
+		MaxHp:       75,
+		HP:          75,
+		TouchDamage: 10,
 	})
 }
 
@@ -232,6 +307,13 @@ func (w *World) updateEnemies(dt float32) {
 	p := w.Player.Pos
 	for i := range w.Enemies {
 		e := &w.Enemies[i]
+		// hit flash decay
+		if e.HitT > 0 {
+			e.HitT -= dt
+			if e.HitT < 0 {
+				e.HitT = 0
+			}
+		}
 		toP := p.Sub(e.Pos)
 		if toP.X == 0 && toP.Y == 0 {
 			continue
@@ -246,16 +328,6 @@ func (w *World) updateEnemies(dt float32) {
 }
 
 func (w *World) updateCombat(dt float32) {
-
-	// update hit flashes
-	for i := range w.Enemies {
-		if w.Enemies[i].HitT > 0 {
-			w.Enemies[i].HitT -= dt
-			if w.Enemies[i].HitT < 0 {
-				w.Enemies[i].HitT = 0
-			}
-		}
-	}
 
 	// cooldown timer
 	if w.Player.AttackTimer > 0 {
@@ -275,17 +347,93 @@ func (w *World) updateCombat(dt float32) {
 	// perform attack
 	w.Player.AttackTimer = w.Player.AttackCooldown
 
+	// deal Damage
 	e := &w.Enemies[idx]
-
 	e.HP -= w.Player.Damage
 	e.HitT = 1.10 // flash duration
+
 	w.LastAttackPos = e.Pos
 	w.LastAttackT = 0.08
 
 	if e.HP <= 0 {
+		deathPos := e.Pos
+		w.spawnXPOrb(deathPos, 5)
 		w.removeEnemyAt(idx)
 	}
 
+}
+
+func (w *World) updateContactDamage(dt float32) {
+
+	// invulnerability timer
+	if w.Player.HurtTimer > 0 {
+		w.Player.HurtTimer -= dt
+		if w.Player.HurtTimer > 0 {
+			return
+		}
+
+		w.Player.HurtTimer = 0
+	}
+
+	pr := w.Player.R
+	p := w.Player.Pos
+
+	// if touching any enemy, take damage once per HurtCooldown.
+	for i := range w.Enemies {
+		e := &w.Enemies[i]
+		rr := pr + e.R
+		if dist2(p, e.Pos) < rr*rr {
+			w.Player.HP -= e.TouchDamage
+			w.Player.HurtTimer = w.Player.HurtCooldown
+
+			if w.Player.HP <= 0 {
+				w.Player.HP = 0
+				w.GameOver = true
+			}
+
+			return
+		}
+	}
+
+}
+
+func (w *World) spawnXPOrb(pos Vec2, value float32) {
+	w.Orbs = append(w.Orbs, XPOrb{
+		Pos:   pos,
+		R:     6,
+		Value: value,
+	})
+}
+
+func (w *World) updateXPOrbs(dt float32) {
+	_ = dt // reserved for future motion/magnetism
+
+	p := w.Player.Pos
+	pickupR := w.Player.R + 10 // pickup padding
+
+	for i := 0; i < len(w.Orbs); {
+		o := w.Orbs[i]
+		rr := pickupR + o.R
+
+		if dist2(p, o.Pos) <= rr*rr {
+			w.Player.XP += o.Value
+			w.removeOrbAt(i)
+			continue
+		}
+		i++
+	}
+}
+
+func (w *World) updateLevelUp() {
+	for w.Player.XP >= w.Player.XPToNext {
+		w.Player.XP -= w.Player.XPToNext
+		w.Player.Level++
+		w.Player.XPToNext = xpTpNext(w.Player.Level)
+
+		// v0.1 simple reward: small heal on level up
+		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+15)
+		w.Player.MaxHP += 15
+	}
 }
 
 func (w *World) nearestEnemyInRange(p Vec2, rng float32) int {
@@ -322,4 +470,35 @@ func (w *World) removeEnemyAt(idx int) {
 	}
 
 	w.Enemies = w.Enemies[:last]
+}
+
+func (w *World) removeOrbAt(i int) {
+	last := len(w.Orbs) - 1
+	if i != last {
+		w.Orbs[i] = w.Orbs[last]
+	}
+	w.Orbs = w.Orbs[:last]
+}
+
+func dist2(a, b Vec2) float32 {
+	d := a.Sub(b)
+
+	return d.X*d.X + d.Y*d.Y
+}
+
+func xpTpNext(level int) float32 {
+	// v0.1 simple growth curve.
+	// Level 1 -> 25,
+
+	base := 25.0
+	growth := 1.28
+
+	return float32(base * math.Pow(growth, float64(level-1)))
+}
+
+func minf(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
 }
