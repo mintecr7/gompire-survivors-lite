@@ -13,8 +13,6 @@ import (
 	"horde-lab/internal/shared/input"
 )
 
-type Msg interface{ isMsg() }
-
 type MsgInput struct{ Input input.State }
 
 type XPOrb struct {
@@ -46,6 +44,7 @@ type World struct {
 	// run state
 	TimeSurvived float32
 	GameOver     bool
+	Upgrade      UpgradeMenu
 }
 
 type Player struct {
@@ -121,8 +120,17 @@ func (w *World) Tick(dt float32) {
 	for _, m := range w.inbox {
 		switch msg := m.(type) {
 		case MsgInput:
-			w.applyInput(dt, msg.Input)
+			//only allow movement if not paused by upgrade menu and not game over
+			if !w.GameOver && !w.Upgrade.Active {
+
+				w.applyInput(dt, msg.Input)
+			}
+		case MsgChooseUpgrade:
+			if !w.GameOver {
+				w.applyUpGradeChoice(msg.Choice)
+			}
 		}
+
 	}
 	w.inbox = w.inbox[:0]
 
@@ -133,7 +141,8 @@ func (w *World) Tick(dt float32) {
 		}
 	}
 
-	if w.GameOver {
+	// stop simulating during game over or menu
+	if w.GameOver || w.Upgrade.Active {
 		return
 	}
 
@@ -259,6 +268,39 @@ func (w *World) Draw(screen *ebiten.Image) {
 	)
 
 	ebitenutil.DebugPrintAt(screen, hud, 8, 8)
+
+	if w.Upgrade.Active {
+		sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
+
+		vector.FillRect(
+			screen,
+			0, 0,
+			float32(sw), float32(sh),
+			color.RGBA{0, 0, 0, 180},
+			false,
+		)
+
+		// menu text
+		x := 12
+		y := 120
+		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", x, y)
+		y += 18
+
+		o0 := w.Upgrade.Option[0]
+		o1 := w.Upgrade.Option[1]
+
+		ebitenutil.DebugPrintAt(screen, o0.Title, x, y)
+		y += 16
+		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, x, y)
+		y += 22
+
+		ebitenutil.DebugPrintAt(screen, o1.Title, x, y)
+		y += 16
+		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, x, y)
+		y += 22
+
+		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", x, y)
+	}
 
 	if w.GameOver {
 		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
@@ -425,14 +467,29 @@ func (w *World) updateXPOrbs(dt float32) {
 }
 
 func (w *World) updateLevelUp() {
+	// If menu is already active, don't process more levels rights now.
+	if w.Upgrade.Active {
+		return
+	}
+
+	leveled := false
+
 	for w.Player.XP >= w.Player.XPToNext {
 		w.Player.XP -= w.Player.XPToNext
 		w.Player.Level++
 		w.Player.XPToNext = xpTpNext(w.Player.Level)
 
+		// queue one upgrade choice per level
+		w.Upgrade.Pending++
+		leveled = true
+
 		// v0.1 simple reward: small heal on level up
 		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+15)
 		w.Player.MaxHP += 15
+	}
+
+	if leveled {
+		w.openUpgradeMenuIfNeeded()
 	}
 }
 

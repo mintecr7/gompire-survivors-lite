@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 type Game struct {
@@ -46,6 +47,16 @@ func (g *Game) Update() error {
 	// fixed-step simulation
 	for g.accum >= g.fixedStep {
 		g.w.Enqueue(world.MsgInput{Input: in})
+
+		// upgrade selection (edge-triggered)
+		if inpututil.IsKeyJustPressed(ebiten.Key1) || inpututil.IsKeyJustPressed(ebiten.KeyKP1) {
+			g.w.Enqueue(world.MsgChooseUpgrade{Choice: 0})
+		}
+
+		if inpututil.IsKeyJustPressed(ebiten.Key2) || inpututil.IsKeyJustPressed(ebiten.KeyKP2) {
+			g.w.Enqueue(world.MsgChooseUpgrade{Choice: 1})
+		}
+
 		g.w.Tick(float32(g.fixedStep.Seconds()))
 		g.accum -= g.fixedStep
 	}
