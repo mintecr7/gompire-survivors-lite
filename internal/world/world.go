@@ -21,8 +21,6 @@ type XPOrb struct {
 	Value float32
 }
 
-func (MsgInput) isMsg() {}
-
 type World struct {
 	W, H float32
 
@@ -44,6 +42,7 @@ type World struct {
 	// run state
 	TimeSurvived float32
 	GameOver     bool
+	Paused       bool
 	Upgrade      UpgradeMenu
 }
 
@@ -111,6 +110,11 @@ func NewWorld(w, h float32) *World {
 	}
 }
 
+func (w *World) Reset() {
+	// keep constants/config; reset mutable state
+	*w = *NewWorld(w.W, w.H)
+}
+
 func (w *World) Enqueue(m Msg) {
 	w.inbox = append(w.inbox, m)
 }
@@ -128,6 +132,10 @@ func (w *World) Tick(dt float32) {
 		case MsgChooseUpgrade:
 			if !w.GameOver {
 				w.applyUpGradeChoice(msg.Choice)
+			}
+		case MsgRestart:
+			if w.GameOver || w.Paused {
+				w.Reset()
 			}
 		}
 

@@ -39,6 +39,11 @@ func (g *Game) Update() error {
 	g.accum += frameDt
 
 	in := ReadInput()
+
+	if ReadRestart() {
+		g.w.Enqueue(world.MsgRestart{})
+	}
+
 	// if in.Down || in.Left || in.Right || in.Up {
 
 	// 	fmt.Println("input values", in)

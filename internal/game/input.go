@@ -4,6 +4,8 @@ import (
 	"horde-lab/internal/shared/input"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 func ReadInput() input.State {
@@ -13,4 +15,12 @@ func ReadInput() input.State {
 		Left:  ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyArrowLeft),
 		Right: ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyArrowRight),
 	}
+}
+
+func ReadRestart() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyP) || inpututil.IsKeyJustPressed(ebiten.KeyKPEnter)
+}
+
+func ReadPaused() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeySpace)
 }
