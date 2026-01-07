@@ -13,3 +13,7 @@ func (MsgChooseUpgrade) isMsg() {}
 type MsgRestart struct{}
 
 func (MsgRestart) isMsg() {}
+
+type MsgPaused struct{}
+
+func (MsgPaused) isMsg() {}

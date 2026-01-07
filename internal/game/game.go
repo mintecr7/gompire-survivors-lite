@@ -44,6 +44,9 @@ func (g *Game) Update() error {
 		g.w.Enqueue(world.MsgRestart{})
 	}
 
+	if ReadPaused() {
+		g.w.Enqueue(world.MsgPaused{})
+	}
 	// if in.Down || in.Left || in.Right || in.Up {
 
 	// 	fmt.Println("input values", in)

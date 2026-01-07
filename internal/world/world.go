@@ -137,6 +137,10 @@ func (w *World) Tick(dt float32) {
 			if w.GameOver || w.Paused {
 				w.Reset()
 			}
+		case MsgPaused:
+			if !w.GameOver {
+				w.Paused = !w.Paused
+			}
 		}
 
 	}
@@ -155,7 +159,9 @@ func (w *World) Tick(dt float32) {
 	}
 
 	w.TimeSurvived += dt
-
+	if w.Paused {
+		return
+	}
 	w.updateSpawning(dt)
 	w.updateEnemies(dt)
 	w.updateCombat(dt)
