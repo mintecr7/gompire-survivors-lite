@@ -229,7 +229,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 	}
 
-	// draw enemies
+	// enemies (centered react; replace wit )
 	for _, e := range w.Enemies {
 		clr := color.RGBA{220, 80, 80, 255}
 		if e.HitT > 0 {
@@ -245,9 +245,20 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 	}
 
-	// draw attack line
+	// attack line (fade normalized)
 	if w.LastAttackT > 0 {
-		alpha := uint8(255 * w.LastAttackT)
+		const lastAttackMax float32 = 0.08
+		t := w.LastAttackT / lastAttackMax
+
+		if t < 0 {
+			t = 0
+		}
+
+		if t > 1 {
+			t = 1
+		}
+
+		alpha := uint8(255 * t)
 		vector.StrokeLine(
 			screen,
 			camX+w.Player.Pos.X,
@@ -262,6 +273,9 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	// draw player
 	pclr := color.RGBA{80, 200, 120, 255}
+	if w.Player.HurtTimer > 0 {
+		pclr = color.RGBA{200, 240, 200, 255}
+	}
 	vector.FillCircle(
 		screen,
 		camX+w.Player.Pos.X,
@@ -271,6 +285,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 		false,
 	)
 
+	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
 		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nEnemies: %d  Orbs: %d\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
@@ -281,8 +296,24 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	ebitenutil.DebugPrintAt(screen, hud, 8, 8)
 
+	// ---- Modal overlays (priority: GameOver > Upgrade > Paused) ----
+
+	// Game over overlay
+	if w.GameOver {
+		vector.FillRect(
+			screen,
+			0, 0,
+			float32(sw), float32(sh),
+			color.RGBA{0, 0, 0, 180},
+			false,
+		)
+		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
+		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 110)
+		return
+	}
+
+	// Upgrade menu overlay
 	if w.Upgrade.Active {
-		sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
 
 		vector.FillRect(
 			screen,
@@ -314,8 +345,18 @@ func (w *World) Draw(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", x, y)
 	}
 
-	if w.GameOver {
-		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
+	// Pause overlay
+	if w.Paused {
+		vector.FillRect(
+			screen,
+			0, 0,
+			float32(sw), float32(sh),
+			color.RGBA{0, 0, 0, 140},
+			false,
+		)
+		ebitenutil.DebugPrintAt(screen, "PAUSED", 8, 9)
+		ebitenutil.DebugPrintAt(screen, "Press the space bar to resume", 8, 110)
+		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 130)
 	}
 }
 
