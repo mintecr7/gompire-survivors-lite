@@ -1,0 +1,88 @@
+package world
+
+import "math"
+
+type Config struct {
+	// World / pacing
+	BaseSpawnEvery float32
+	MinSpawnEvery  float32
+	RampEvery      float32
+	RampFactor     float32
+	SoftEnemyCap   int
+	SpawnRadius    float32
+
+	// Player
+	PlayerRadius         float32
+	PlayerSpeed          float32
+	PlayerMaxHP          float32
+	PlayerHurtCooldown   float32
+	PlayerLevelUpHeal    float32
+	PlayerAttackCooldown float32
+	PlayerAttackRange    float32
+	PlayerDamage         float32
+
+	// Knockback feel
+	PlayerKnockbackSpeed   float32
+	PlayerKnockbackDamping float32
+
+	// Enemy
+	EnemyRadius      float32
+	EnemySpeed       float32
+	EnemyHP          float32
+	EnemyTouchDamage float32
+
+	// XP
+	XPOrbRadius     float32
+	XPPickupPadding float32
+	XPPerKill       float32
+	XPBaseToNext    float32
+	XPGrowthToNext  float64
+
+	// Visual timers
+	LastAttackMax float32
+}
+
+func DefaultConfig() Config {
+	return Config{
+		BaseSpawnEvery: 0.75,
+		MinSpawnEvery:  0.20,
+		RampEvery:      15.0,
+		RampFactor:     0.92,
+		SoftEnemyCap:   140,
+		SpawnRadius:    420,
+
+		PlayerRadius:         10,
+		PlayerSpeed:          260,
+		PlayerMaxHP:          100,
+		PlayerHurtCooldown:   0.35,
+		PlayerLevelUpHeal:    15,
+		PlayerAttackCooldown: 0.45,
+		PlayerAttackRange:    180,
+		PlayerDamage:         25,
+
+		PlayerKnockbackSpeed:   520,
+		PlayerKnockbackDamping: 18,
+
+		EnemyRadius:      9,
+		EnemySpeed:       120,
+		EnemyHP:          50,
+		EnemyTouchDamage: 10,
+
+		XPOrbRadius:     6,
+		XPPickupPadding: 10,
+		XPPerKill:       5,
+
+		XPBaseToNext:   25,
+		XPGrowthToNext: 1.28,
+
+		LastAttackMax: 0.08,
+	}
+}
+
+func (c Config) XPToNext(level int) float32 {
+	// level 1 -> base, multiplicative growth thereafter
+	if level < 1 {
+		level = 1
+	}
+	return float32(float64(c.XPBaseToNext) * math.Pow(c.XPGrowthToNext, float64(level-1)))
+}
