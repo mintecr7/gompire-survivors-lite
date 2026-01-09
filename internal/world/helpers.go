@@ -1,0 +1,296 @@
+package world
+
+import "math"
+
+var base float32 = float32(0.75)
+
+func (w *World) updateSpawning(dt float32) {
+
+	// soft cap: if too many enemies, slow spawning instead pf hard stopping
+	// Example: above cap, effective spawn interval increase linearly.
+
+	effectiveEvery := w.spawnEvery
+	if w.SoftEnemyCap > 0 && len(w.Enemies) > w.SoftEnemyCap {
+		over := float32(len(w.Enemies)-w.SoftEnemyCap) / float32(w.SoftEnemyCap)
+
+		effectiveEvery *= (1 + over)
+	}
+
+	w.spawnTimer += dt
+	for w.spawnTimer >= effectiveEvery {
+		w.spawnTimer -= effectiveEvery
+		w.spawnEnemyNearPlayer()
+	}
+}
+
+func (w *World) spawnEnemyNearPlayer() {
+	// Spawn in a ring around the player, slightly off-screen-ish.
+	const spawnRadius float32 = 420
+
+	ang := w.rng.Float32() * 2 * math.Pi
+	off := Vec2{
+		X: float32(math.Cos(float64(ang))) * spawnRadius,
+		Y: float32(math.Sin(float64(ang))) * spawnRadius,
+	}
+
+	pos := w.Player.Pos.Add(off)
+
+	// Clamp to world bounds so enemies always exist in-world
+	pos.X = clamp(pos.X, 0, w.W)
+	pos.Y = clamp(pos.Y, 0, w.H)
+
+	w.Enemies = append(w.Enemies, Enemy{
+		Pos:         pos,
+		Speed:       220,
+		R:           9,
+		MaxHp:       75,
+		HP:          75,
+		TouchDamage: 10,
+	})
+
+	w.Stats.EnemiesSpawned++
+}
+
+func (w *World) updateEnemies(dt float32) {
+	p := w.Player.Pos
+	for i := range w.Enemies {
+		e := &w.Enemies[i]
+		// hit flash decay
+		if e.HitT > 0 {
+			e.HitT -= dt
+			if e.HitT < 0 {
+				e.HitT = 0
+			}
+		}
+		toP := p.Sub(e.Pos)
+		if toP.X == 0 && toP.Y == 0 {
+			continue
+		}
+		dir := toP.Norm()
+		e.Pos = e.Pos.Add(dir.Mul(e.Speed * dt))
+
+		// Clamp
+		e.Pos.X = clamp(e.Pos.X, 0, w.W)
+		e.Pos.Y = clamp(e.Pos.Y, 0, w.H)
+	}
+}
+
+func (w *World) updateCombat(dt float32) {
+
+	// cooldown timer
+	if w.Player.AttackTimer > 0 {
+		w.Player.AttackTimer -= dt
+		if w.Player.AttackTimer > 0 {
+			return
+		}
+	}
+
+	// ready to attack: find nearest enemy in range
+	idx := w.nearestEnemyInRange(w.Player.Pos, w.Player.AttackRange)
+
+	if idx < 0 {
+		return
+	}
+
+	// perform attack
+	w.Player.AttackTimer = w.Player.AttackCooldown
+
+	// deal Damage
+	e := &w.Enemies[idx]
+	e.HP -= w.Player.Damage
+	e.HitT = 1.10 // flash duration
+
+	w.LastAttackPos = e.Pos
+	w.LastAttackT = 0.08
+
+	if e.HP <= 0 {
+		deathPos := e.Pos
+		w.spawnXPOrb(deathPos, 5)
+		w.removeEnemyAt(idx)
+
+		w.Stats.EnemiesKilled++
+	}
+
+}
+
+func (w *World) updateContactDamage(dt float32) {
+
+	// invulnerability timer
+	if w.Player.HurtTimer > 0 {
+		w.Player.HurtTimer -= dt
+		if w.Player.HurtTimer > 0 {
+			return
+		}
+
+		w.Player.HurtTimer = 0
+	}
+
+	pr := w.Player.R
+	p := w.Player.Pos
+
+	// if touching any enemy, take damage once per HurtCooldown.
+	for i := range w.Enemies {
+		e := &w.Enemies[i]
+		rr := pr + e.R
+		if dist2(p, e.Pos) < rr*rr {
+			w.Player.HP -= e.TouchDamage
+			w.Stats.DamageTaken += e.TouchDamage
+			w.Player.HurtTimer = w.Player.HurtCooldown
+
+			if w.Player.HP <= 0 {
+				w.Player.HP = 0
+				w.GameOver = true
+			}
+
+			return
+		}
+	}
+
+}
+
+func (w *World) updateLevelUp() {
+	// If menu is already active, don't process more levels rights now.
+	if w.Upgrade.Active {
+		return
+	}
+
+	leveled := false
+
+	for w.Player.XP >= w.Player.XPToNext {
+		w.Player.XP -= w.Player.XPToNext
+		w.Player.Level++
+		w.Player.XPToNext = xpTpNext(w.Player.Level)
+
+		// queue one upgrade choice per level
+		w.Upgrade.Pending++
+		leveled = true
+
+		// v0.1 simple reward: small heal on level up
+		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+15)
+		w.Player.MaxHP += 15
+	}
+
+	if leveled {
+		w.openUpgradeMenuIfNeeded()
+	}
+}
+
+func (w *World) updateDifficulty() {
+	// Ramp based on time survived: every RampEvery seconds reduce spawnEvery by RampFactor
+
+	if w.RampEvery <= 0 {
+		return
+	}
+
+	steps := max(int(w.TimeSurvived/w.RampEvery), 0)
+
+	target := base
+	for range steps {
+		target *= w.RampFactor
+	}
+	if target < w.MinSpawnEvery {
+		target = w.MinSpawnEvery
+	}
+
+	w.spawnEvery = target
+
+}
+
+func clamp(v, lo, hi float32) float32 {
+	return float32(math.Max(float64(lo), math.Min(float64(hi), float64(v))))
+}
+
+func (w *World) spawnXPOrb(pos Vec2, value float32) {
+	w.Orbs = append(w.Orbs, XPOrb{
+		Pos:   pos,
+		R:     6,
+		Value: value,
+	})
+}
+
+func (w *World) updateXPOrbs(dt float32) {
+	_ = dt // reserved for future motion/magnetism
+
+	p := w.Player.Pos
+	pickupR := w.Player.R + 10 // pickup padding
+
+	for i := 0; i < len(w.Orbs); {
+		o := w.Orbs[i]
+		rr := pickupR + o.R
+
+		if dist2(p, o.Pos) <= rr*rr {
+			w.Player.XP += o.Value
+			w.Stats.XPCollected += o.Value
+			w.removeOrbAt(i)
+			continue
+		}
+		i++
+	}
+}
+
+func (w *World) nearestEnemyInRange(p Vec2, rng float32) int {
+	if len(w.Enemies) == 0 {
+		return -1
+	}
+
+	r2 := rng * rng
+	best := -1
+	bestD2 := float32(0)
+
+	for i := range w.Enemies {
+		d := w.Enemies[i].Pos.Sub(p)
+		d2 := d.X*d.X + d.Y*d.Y
+
+		if d2 > r2 {
+			continue
+		}
+
+		if best == -1 || d2 < bestD2 {
+			best = i
+			bestD2 = d2
+		}
+	}
+
+	return best
+}
+
+func (w *World) removeEnemyAt(idx int) {
+	last := len(w.Enemies) - 1
+
+	if idx != last {
+		w.Enemies[idx] = w.Enemies[last]
+	}
+
+	w.Enemies = w.Enemies[:last]
+}
+
+func (w *World) removeOrbAt(i int) {
+	last := len(w.Orbs) - 1
+	if i != last {
+		w.Orbs[i] = w.Orbs[last]
+	}
+	w.Orbs = w.Orbs[:last]
+}
+
+func dist2(a, b Vec2) float32 {
+	d := a.Sub(b)
+
+	return d.X*d.X + d.Y*d.Y
+}
+
+func xpTpNext(level int) float32 {
+	// v0.1 simple growth curve.
+	// Level 1 -> 25,
+
+	base := 25.0
+	growth := 1.28
+
+	return float32(base * math.Pow(growth, float64(level-1)))
+}
+
+func minf(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
+}
