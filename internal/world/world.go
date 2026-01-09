@@ -124,8 +124,8 @@ func (w *World) Tick(dt float32) {
 	for _, m := range w.inbox {
 		switch msg := m.(type) {
 		case MsgInput:
-			//only allow movement if not paused by upgrade menu and not game over
-			if !w.GameOver && !w.Upgrade.Active {
+			// Prevent movement during pause, game over, or upgrade selection
+			if !w.GameOver && !w.Upgrade.Active && !w.Paused {
 
 				w.applyInput(dt, msg.Input)
 			}
@@ -137,14 +137,19 @@ func (w *World) Tick(dt float32) {
 			if w.GameOver || w.Paused {
 				w.Reset()
 			}
-		case MsgPaused:
-			if !w.GameOver {
+		case MsgTogglePause:
+			if !w.GameOver && !w.Upgrade.Active {
 				w.Paused = !w.Paused
 			}
 		}
 
 	}
 	w.inbox = w.inbox[:0]
+
+	// stop simulating during game over or menu
+	if w.GameOver || w.Upgrade.Active || w.Paused {
+		return
+	}
 
 	if w.LastAttackT > 0 {
 		w.LastAttackT -= dt
@@ -153,15 +158,8 @@ func (w *World) Tick(dt float32) {
 		}
 	}
 
-	// stop simulating during game over or menu
-	if w.GameOver || w.Upgrade.Active {
-		return
-	}
-
 	w.TimeSurvived += dt
-	if w.Paused {
-		return
-	}
+
 	w.updateSpawning(dt)
 	w.updateEnemies(dt)
 	w.updateCombat(dt)

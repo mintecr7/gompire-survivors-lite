@@ -45,7 +45,7 @@ func (g *Game) Update() error {
 	}
 
 	if ReadPaused() {
-		g.w.Enqueue(world.MsgPaused{})
+		g.w.Enqueue(world.MsgTogglePause{})
 	}
 	// if in.Down || in.Left || in.Right || in.Up {
 

@@ -18,7 +18,7 @@ func ReadInput() input.State {
 }
 
 func ReadRestart() bool {
-	return inpututil.IsKeyJustPressed(ebiten.KeyP) || inpututil.IsKeyJustPressed(ebiten.KeyKPEnter)
+	return inpututil.IsKeyJustPressed(ebiten.KeyR) || inpututil.IsKeyJustPressed(ebiten.KeyEnter)
 }
 
 func ReadPaused() bool {

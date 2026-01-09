@@ -14,6 +14,6 @@ type MsgRestart struct{}
 
 func (MsgRestart) isMsg() {}
 
-type MsgPaused struct{}
+type MsgTogglePause struct{}
 
-func (MsgPaused) isMsg() {}
+func (MsgTogglePause) isMsg() {}
