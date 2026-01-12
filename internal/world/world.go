@@ -13,35 +13,32 @@ import (
 )
 
 func NewWorld(w, h float32) *World {
+	cfg := DefaultConfig()
 	pl := Player{
 		Pos:   Vec2{X: w / 2, Y: h / 2},
-		Speed: 260,
-		R:     10,
+		Speed: cfg.PlayerSpeed,
+		R:     cfg.PlayerRadius,
 
-		AttackCooldown: 0.45,
-		AttackRange:    180,
-		Damage:         35,
+		AttackCooldown: cfg.PlayerAttackCooldown,
+		AttackRange:    cfg.PlayerAttackRange,
+		Damage:         cfg.PlayerDamage,
 
-		MaxHP:        100,
-		HP:           100,
-		HurtCooldown: 0.35,
+		MaxHP:        cfg.PlayerMaxHP,
+		HP:           cfg.PlayerMaxHP,
+		HurtCooldown: cfg.PlayerHurtCooldown,
 
 		Level:    1,
 		XP:       0,
-		XPToNext: xpTpNext(1),
+		XPToNext: cfg.XPToNext(1),
 	}
 	return &World{
 		W: w, H: h,
+		Cfg: cfg,
+		
 		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
 		Orbs:       make([]XPOrb, 0, 256),
-		spawnEvery: 0.75,
-
-		// difficulty params (v0.1 tuning knobs)'
-		MinSpawnEvery: 0.20, // don't go faster than this
-		RampEvery:     15.0, // every 15s, ramp
-		RampFactor:    0.92, // spawnEvery *= 0.92 (8% faster)
-		SoftEnemyCap:  140,  // soft cap (spawns slow down above this)\
+		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng: rand.New(rand.NewSource(1)),
 	}
@@ -101,10 +98,10 @@ func (w *World) Tick(dt float32) {
 	w.updateSpawning(dt)
 	w.updateEnemies(dt)
 	w.updateCombat(dt)
+	w.updateKnockback(dt)
 	w.updateContactDamage(dt)
 	w.updateXPOrbs(dt)
 	w.updateLevelUp()
-
 }
 
 func (w *World) applyInput(dt float32, in input.State) {

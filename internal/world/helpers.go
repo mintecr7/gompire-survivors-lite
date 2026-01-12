@@ -10,8 +10,9 @@ func (w *World) updateSpawning(dt float32) {
 	// Example: above cap, effective spawn interval increase linearly.
 
 	effectiveEvery := w.spawnEvery
-	if w.SoftEnemyCap > 0 && len(w.Enemies) > w.SoftEnemyCap {
-		over := float32(len(w.Enemies)-w.SoftEnemyCap) / float32(w.SoftEnemyCap)
+	cap := w.Cfg.SoftEnemyCap
+	if cap > 0 && len(w.Enemies) > cap {
+		over := float32(len(w.Enemies)-cap) / float32(cap)
 
 		effectiveEvery *= (1 + over)
 	}
@@ -25,7 +26,8 @@ func (w *World) updateSpawning(dt float32) {
 
 func (w *World) spawnEnemyNearPlayer() {
 	// Spawn in a ring around the player, slightly off-screen-ish.
-	const spawnRadius float32 = 420
+	cfg := w.Cfg
+	spawnRadius := cfg.SpawnRadius
 
 	ang := w.rng.Float32() * 2 * math.Pi
 	off := Vec2{
@@ -41,11 +43,11 @@ func (w *World) spawnEnemyNearPlayer() {
 
 	w.Enemies = append(w.Enemies, Enemy{
 		Pos:         pos,
-		Speed:       220,
-		R:           9,
-		MaxHp:       75,
-		HP:          75,
-		TouchDamage: 10,
+		Speed:       cfg.EnemySpeed,
+		R:           cfg.EnemyRadius,
+		MaxHp:       cfg.EnemyHP,
+		HP:          cfg.EnemyHP,
+		TouchDamage: cfg.EnemyTouchDamage,
 	})
 
 	w.Stats.EnemiesSpawned++
@@ -86,26 +88,26 @@ func (w *World) updateCombat(dt float32) {
 	}
 
 	// ready to attack: find nearest enemy in range
-	idx := w.nearestEnemyInRange(w.Player.Pos, w.Player.AttackRange)
+	idx := w.nearestEnemyInRange(w.Player.Pos, w.Cfg.PlayerAttackRange)
 
 	if idx < 0 {
 		return
 	}
 
 	// perform attack
-	w.Player.AttackTimer = w.Player.AttackCooldown
+	w.Player.AttackTimer = w.Cfg.PlayerAttackCooldown
 
 	// deal Damage
 	e := &w.Enemies[idx]
-	e.HP -= w.Player.Damage
+	e.HP -= w.Cfg.PlayerDamage
 	e.HitT = 1.10 // flash duration
-
+	
 	w.LastAttackPos = e.Pos
 	w.LastAttackT = 0.08
 
 	if e.HP <= 0 {
 		deathPos := e.Pos
-		w.spawnXPOrb(deathPos, 5)
+		w.spawnXPOrb(deathPos, w.Cfg.XPPerKill)
 		w.removeEnemyAt(idx)
 
 		w.Stats.EnemiesKilled++
@@ -135,7 +137,22 @@ func (w *World) updateContactDamage(dt float32) {
 		if dist2(p, e.Pos) < rr*rr {
 			w.Player.HP -= e.TouchDamage
 			w.Stats.DamageTaken += e.TouchDamage
-			w.Player.HurtTimer = w.Player.HurtCooldown
+			w.Player.HurtTimer = w.Cfg.PlayerHurtCooldown
+
+			// Knockback
+			dir := w.Player.Pos.Sub(e.Pos).Norm()
+			if dir.X == 0 && dir.Y == 0 { 
+				// rare overlap: pick a deterministic-ish random direction
+				ang := w.rng.Float32() * 2 * math.Pi
+				dir = Vec2{
+					X: float32(math.Cos(float64(ang))),
+					Y: float32(math.Sin(float64(ang))),
+				}
+			} else {
+				dir = dir.Norm()
+			}
+
+			w.Player.KnockVel = dir.Mul(w.Cfg.PlayerKnockbackSpeed)
 
 			if w.Player.HP <= 0 {
 				w.Player.HP = 0
@@ -146,6 +163,31 @@ func (w *World) updateContactDamage(dt float32) {
 		}
 	}
 
+}
+
+func (w *World) updateKnockback(dt float32) {
+	kv := w.Player.KnockVel
+	if kv.X == 0 && kv.Y == 0 {
+		return
+	}
+  // integrate 
+	w.Player.Pos = w.Player.Pos.Add(kv.Mul(dt))
+
+	// damping (euler integration)
+	d := w.Cfg.PlayerKnockbackDamping 
+	f := 1 - d * dt
+	if f < 0 {
+		f = 0
+	}
+	w.Player.KnockVel = w.Player.KnockVel.Mul(f)
+
+	// clamp + stop tiny velocity
+	w.Player.Pos.X = clamp(w.Player.Pos.X, 0, w.W)
+	w.Player.Pos.Y = clamp(w.Player.Pos.Y, 0, w.H)
+
+	if absf(w.Player.KnockVel.X) + absf(w.Player.KnockVel.Y) < 1 {
+		w.Player.KnockVel = Vec2{}
+	}
 }
 
 func (w *World) updateLevelUp() {
@@ -159,15 +201,15 @@ func (w *World) updateLevelUp() {
 	for w.Player.XP >= w.Player.XPToNext {
 		w.Player.XP -= w.Player.XPToNext
 		w.Player.Level++
-		w.Player.XPToNext = xpTpNext(w.Player.Level)
+		w.Player.XPToNext = w.Cfg.XPToNext(w.Player.Level)
 
 		// queue one upgrade choice per level
 		w.Upgrade.Pending++
 		leveled = true
 
 		// v0.1 simple reward: small heal on level up
-		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+15)
-		w.Player.MaxHP += 15
+		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+w.Cfg.PlayerLevelUpHeal)
+		w.Player.MaxHP += w.Cfg.PlayerLevelUpHeal
 	}
 
 	if leveled {
@@ -177,33 +219,30 @@ func (w *World) updateLevelUp() {
 
 func (w *World) updateDifficulty() {
 	// Ramp based on time survived: every RampEvery seconds reduce spawnEvery by RampFactor
-
-	if w.RampEvery <= 0 {
+	cfg := w.Cfg
+	if cfg.RampEvery <= 0 {
 		return
 	}
 
-	steps := max(int(w.TimeSurvived/w.RampEvery), 0)
+	steps := int(w.TimeSurvived/cfg.RampEvery)
 
-	target := base
+	target := cfg.BaseSpawnEvery
 	for range steps {
-		target *= w.RampFactor
+		target *= cfg.RampFactor
 	}
-	if target < w.MinSpawnEvery {
-		target = w.MinSpawnEvery
+	if target < cfg.MinSpawnEvery {
+		target = cfg.MinSpawnEvery
 	}
 
-	w.spawnEvery = target
+	w.spawnEvery = target // update spawn interval
 
 }
 
-func clamp(v, lo, hi float32) float32 {
-	return float32(math.Max(float64(lo), math.Min(float64(hi), float64(v))))
-}
 
 func (w *World) spawnXPOrb(pos Vec2, value float32) {
 	w.Orbs = append(w.Orbs, XPOrb{
 		Pos:   pos,
-		R:     6,
+		R:     w.Cfg.XPOrbRadius,
 		Value: value,
 	})
 }
@@ -212,7 +251,7 @@ func (w *World) updateXPOrbs(dt float32) {
 	_ = dt // reserved for future motion/magnetism
 
 	p := w.Player.Pos
-	pickupR := w.Player.R + 10 // pickup padding
+	pickupR := w.Player.R + w.Cfg.XPPickupPadding // pickup padding
 
 	for i := 0; i < len(w.Orbs); {
 		o := w.Orbs[i]
@@ -278,19 +317,21 @@ func dist2(a, b Vec2) float32 {
 	return d.X*d.X + d.Y*d.Y
 }
 
-func xpTpNext(level int) float32 {
-	// v0.1 simple growth curve.
-	// Level 1 -> 25,
-
-	base := 25.0
-	growth := 1.28
-
-	return float32(base * math.Pow(growth, float64(level-1)))
-}
 
 func minf(a, b float32) float32 {
 	if a < b {
 		return a
 	}
 	return b
+}
+
+func clamp(v, lo, hi float32) float32 {
+	return float32(math.Max(float64(lo), math.Min(float64(hi), float64(v))))
+}
+
+func absf(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

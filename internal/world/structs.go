@@ -19,6 +19,7 @@ type World struct {
 
 	inbox []Msg // TODO: use channel
 
+	Cfg     Config
 	Orbs    []XPOrb
 	Player  Player
 	Enemies []Enemy
@@ -69,6 +70,9 @@ type Player struct {
 	Level    int
 	XP       float32
 	XPToNext float32
+
+	// knockback
+	KnockVel Vec2
 }
 
 type Enemy struct {
