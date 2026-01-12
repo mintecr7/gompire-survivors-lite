@@ -40,6 +40,12 @@ type Config struct {
 
 	// Visual timers
 	LastAttackMax float32
+
+	// Screen shake (on taking damage)
+	HitShakeDuration  float32
+	HitShakeMagnitude float32
+	HitShakeFreq1     float32
+	HitShakeFreq2     float32
 }
 
 func DefaultConfig() Config {
@@ -76,6 +82,11 @@ func DefaultConfig() Config {
 		XPGrowthToNext: 1.28,
 
 		LastAttackMax: 0.08,
+
+		HitShakeDuration:  0.12,
+		HitShakeMagnitude: 6.0,
+		HitShakeFreq1:     26.0,
+		HitShakeFreq2:     33.0,
 	}
 }
 

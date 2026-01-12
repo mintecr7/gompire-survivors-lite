@@ -34,7 +34,7 @@ func NewWorld(w, h float32) *World {
 	return &World{
 		W: w, H: h,
 		Cfg: cfg,
-		
+
 		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
 		Orbs:       make([]XPOrb, 0, 256),
@@ -101,6 +101,7 @@ func (w *World) Tick(dt float32) {
 	w.updateKnockback(dt)
 	w.updateContactDamage(dt)
 	w.updateXPOrbs(dt)
+	w.updateShake(dt)
 	w.updateLevelUp()
 }
 
@@ -122,12 +123,12 @@ func (w *World) applyInput(dt float32, in input.State) {
 
 	if dir.X != 0 || dir.Y != 0 {
 		dir = dir.Norm()
-		fmt.Println("pos x: ", w.Player.Pos.X)
-		fmt.Println("pos y: ", w.Player.Pos.Y)
+		// fmt.Println("pos x: ", w.Player.Pos.X)
+		// fmt.Println("pos y: ", w.Player.Pos.Y)
 		w.Player.Pos.X += dir.X * w.Player.Speed * dt
 		w.Player.Pos.Y += dir.Y * w.Player.Speed * dt
-		fmt.Println("pos x: ", w.Player.Pos.X)
-		fmt.Println("pos y: ", w.Player.Pos.Y)
+		// fmt.Println("pos x: ", w.Player.Pos.X)
+		// fmt.Println("pos y: ", w.Player.Pos.Y)
 	}
 
 	// clamp to bounds
@@ -142,6 +143,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
 	camX := float32(sw)/2 - w.Player.Pos.X
 	camY := float32(sh)/2 - w.Player.Pos.Y
+
+	// offset camera for damage shake
+
+	camX += w.ShakeOff.X
+	camY += w.ShakeOff.Y
 
 	// world background``
 	vector.FillRect(

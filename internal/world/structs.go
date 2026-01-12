@@ -47,6 +47,11 @@ type World struct {
 	RampEvery     float32
 	RampFactor    float32
 	SoftEnemyCap  int
+
+	// screen shake state
+	ShakeT     float32
+	ShakePhase float32
+	ShakeOff   Vec2
 }
 
 type Player struct {

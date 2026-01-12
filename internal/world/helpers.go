@@ -4,6 +4,10 @@ import "math"
 
 var base float32 = float32(0.75)
 
+// ============================================================================
+// SPAWNING & DIFFICULTY
+// ============================================================================
+
 func (w *World) updateSpawning(dt float32) {
 
 	// soft cap: if too many enemies, slow spawning instead pf hard stopping
@@ -53,6 +57,31 @@ func (w *World) spawnEnemyNearPlayer() {
 	w.Stats.EnemiesSpawned++
 }
 
+func (w *World) updateDifficulty() {
+	// Ramp based on time survived: every RampEvery seconds reduce spawnEvery by RampFactor
+	cfg := w.Cfg
+	if cfg.RampEvery <= 0 {
+		return
+	}
+
+	steps := int(w.TimeSurvived / cfg.RampEvery)
+
+	target := cfg.BaseSpawnEvery
+	for range steps {
+		target *= cfg.RampFactor
+	}
+	if target < cfg.MinSpawnEvery {
+		target = cfg.MinSpawnEvery
+	}
+
+	w.spawnEvery = target // update spawn interval
+
+}
+
+// ============================================================================
+// ENEMY MOVEMENT & AI
+// ============================================================================
+
 func (w *World) updateEnemies(dt float32) {
 	p := w.Player.Pos
 	for i := range w.Enemies {
@@ -76,6 +105,10 @@ func (w *World) updateEnemies(dt float32) {
 		e.Pos.Y = clamp(e.Pos.Y, 0, w.H)
 	}
 }
+
+// ============================================================================
+// COMBAT SYSTEM
+// ============================================================================
 
 func (w *World) updateCombat(dt float32) {
 
@@ -101,7 +134,7 @@ func (w *World) updateCombat(dt float32) {
 	e := &w.Enemies[idx]
 	e.HP -= w.Cfg.PlayerDamage
 	e.HitT = 1.10 // flash duration
-	
+
 	w.LastAttackPos = e.Pos
 	w.LastAttackT = 0.08
 
@@ -141,7 +174,7 @@ func (w *World) updateContactDamage(dt float32) {
 
 			// Knockback
 			dir := w.Player.Pos.Sub(e.Pos).Norm()
-			if dir.X == 0 && dir.Y == 0 { 
+			if dir.X == 0 && dir.Y == 0 {
 				// rare overlap: pick a deterministic-ish random direction
 				ang := w.rng.Float32() * 2 * math.Pi
 				dir = Vec2{
@@ -154,6 +187,9 @@ func (w *World) updateContactDamage(dt float32) {
 
 			w.Player.KnockVel = dir.Mul(w.Cfg.PlayerKnockbackSpeed)
 
+			// trigger/refresh shake
+			w.ShakeT = w.Cfg.HitShakeDuration
+
 			if w.Player.HP <= 0 {
 				w.Player.HP = 0
 				w.GameOver = true
@@ -165,17 +201,21 @@ func (w *World) updateContactDamage(dt float32) {
 
 }
 
+// ============================================================================
+// PLAYER MOVEMENT & PHYSICS
+// ============================================================================
+
 func (w *World) updateKnockback(dt float32) {
 	kv := w.Player.KnockVel
 	if kv.X == 0 && kv.Y == 0 {
 		return
 	}
-  // integrate 
+	// integrate
 	w.Player.Pos = w.Player.Pos.Add(kv.Mul(dt))
 
 	// damping (euler integration)
-	d := w.Cfg.PlayerKnockbackDamping 
-	f := 1 - d * dt
+	d := w.Cfg.PlayerKnockbackDamping
+	f := 1 - d*dt
 	if f < 0 {
 		f = 0
 	}
@@ -185,8 +225,72 @@ func (w *World) updateKnockback(dt float32) {
 	w.Player.Pos.X = clamp(w.Player.Pos.X, 0, w.W)
 	w.Player.Pos.Y = clamp(w.Player.Pos.Y, 0, w.H)
 
-	if absf(w.Player.KnockVel.X) + absf(w.Player.KnockVel.Y) < 1 {
+	if absf(w.Player.KnockVel.X)+absf(w.Player.KnockVel.Y) < 1 {
 		w.Player.KnockVel = Vec2{}
+	}
+}
+
+func (w *World) updateShake(dt float32) {
+	if w.ShakeT <= 0 {
+		w.ShakeOff = Vec2{}
+		return
+	}
+
+	w.ShakeT -= dt
+	if w.ShakeT <= 0 {
+		w.ShakeT = 0
+		w.ShakeOff = Vec2{}
+		return
+	}
+
+	// Fade out as timer decreases
+	t := w.ShakeT / w.Cfg.HitShakeDuration
+
+	if t < 0 {
+		t = 0
+	}
+
+	if t > 1 {
+		t = 1
+	}
+
+	amp := w.Cfg.HitShakeMagnitude * t
+
+	w.ShakeOff = Vec2{
+		X: float32(math.Sin(float64(w.ShakePhase*w.Cfg.HitShakeFreq1))) * amp,
+		Y: float32(math.Cos(float64(w.ShakePhase)*float64(w.Cfg.HitShakeFreq2))) * amp,
+	}
+}
+
+// ============================================================================
+// XP & LEVELING SYSTEM
+// ============================================================================
+
+func (w *World) spawnXPOrb(pos Vec2, value float32) {
+	w.Orbs = append(w.Orbs, XPOrb{
+		Pos:   pos,
+		R:     w.Cfg.XPOrbRadius,
+		Value: value,
+	})
+}
+
+func (w *World) updateXPOrbs(dt float32) {
+	_ = dt // reserved for future motion/magnetism
+
+	p := w.Player.Pos
+	pickupR := w.Player.R + w.Cfg.XPPickupPadding // pickup padding
+
+	for i := 0; i < len(w.Orbs); {
+		o := w.Orbs[i]
+		rr := pickupR + o.R
+
+		if dist2(p, o.Pos) <= rr*rr {
+			w.Player.XP += o.Value
+			w.Stats.XPCollected += o.Value
+			w.removeOrbAt(i)
+			continue
+		}
+		i++
 	}
 }
 
@@ -217,55 +321,9 @@ func (w *World) updateLevelUp() {
 	}
 }
 
-func (w *World) updateDifficulty() {
-	// Ramp based on time survived: every RampEvery seconds reduce spawnEvery by RampFactor
-	cfg := w.Cfg
-	if cfg.RampEvery <= 0 {
-		return
-	}
-
-	steps := int(w.TimeSurvived/cfg.RampEvery)
-
-	target := cfg.BaseSpawnEvery
-	for range steps {
-		target *= cfg.RampFactor
-	}
-	if target < cfg.MinSpawnEvery {
-		target = cfg.MinSpawnEvery
-	}
-
-	w.spawnEvery = target // update spawn interval
-
-}
-
-
-func (w *World) spawnXPOrb(pos Vec2, value float32) {
-	w.Orbs = append(w.Orbs, XPOrb{
-		Pos:   pos,
-		R:     w.Cfg.XPOrbRadius,
-		Value: value,
-	})
-}
-
-func (w *World) updateXPOrbs(dt float32) {
-	_ = dt // reserved for future motion/magnetism
-
-	p := w.Player.Pos
-	pickupR := w.Player.R + w.Cfg.XPPickupPadding // pickup padding
-
-	for i := 0; i < len(w.Orbs); {
-		o := w.Orbs[i]
-		rr := pickupR + o.R
-
-		if dist2(p, o.Pos) <= rr*rr {
-			w.Player.XP += o.Value
-			w.Stats.XPCollected += o.Value
-			w.removeOrbAt(i)
-			continue
-		}
-		i++
-	}
-}
+// ============================================================================
+// UTILITY & HELPER FUNCTIONS
+// ============================================================================
 
 func (w *World) nearestEnemyInRange(p Vec2, rng float32) int {
 	if len(w.Enemies) == 0 {
@@ -316,7 +374,6 @@ func dist2(a, b Vec2) float32 {
 
 	return d.X*d.X + d.Y*d.Y
 }
-
 
 func minf(a, b float32) float32 {
 	if a < b {
