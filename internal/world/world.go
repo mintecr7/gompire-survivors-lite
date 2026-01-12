@@ -12,36 +12,40 @@ import (
 	"horde-lab/internal/shared/input"
 )
 
+const (
+	EnemyNormal EnemyKind = iota
+	EnemyRunner
+	EnemyTank
+)
+
 func NewWorld(w, h float32) *World {
+	cfg := DefaultConfig()
 	pl := Player{
 		Pos:   Vec2{X: w / 2, Y: h / 2},
-		Speed: 260,
-		R:     10,
+		Speed: cfg.PlayerSpeed,
+		R:     cfg.PlayerRadius,
 
-		AttackCooldown: 0.45,
-		AttackRange:    180,
-		Damage:         35,
+		AttackCooldown: cfg.PlayerAttackCooldown,
+		AttackRange:    cfg.PlayerAttackRange,
+		Damage:         cfg.PlayerDamage,
 
-		MaxHP:        100,
-		HP:           100,
-		HurtCooldown: 0.35,
+		MaxHP:        cfg.PlayerMaxHP,
+		HP:           cfg.PlayerMaxHP,
+		HurtCooldown: cfg.PlayerHurtCooldown,
 
 		Level:    1,
 		XP:       0,
-		XPToNext: xpTpNext(1),
+		XPToNext: cfg.XPToNext(1),
+		XPMagnet: 10,
 	}
 	return &World{
 		W: w, H: h,
+		Cfg: cfg,
+
 		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
 		Orbs:       make([]XPOrb, 0, 256),
-		spawnEvery: 0.75,
-
-		// difficulty params (v0.1 tuning knobs)'
-		MinSpawnEvery: 0.20, // don't go faster than this
-		RampEvery:     15.0, // every 15s, ramp
-		RampFactor:    0.92, // spawnEvery *= 0.92 (8% faster)
-		SoftEnemyCap:  140,  // soft cap (spawns slow down above this)\
+		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng: rand.New(rand.NewSource(1)),
 	}
@@ -101,10 +105,11 @@ func (w *World) Tick(dt float32) {
 	w.updateSpawning(dt)
 	w.updateEnemies(dt)
 	w.updateCombat(dt)
+	w.updateKnockback(dt)
 	w.updateContactDamage(dt)
 	w.updateXPOrbs(dt)
+	w.updateShake(dt)
 	w.updateLevelUp()
-
 }
 
 func (w *World) applyInput(dt float32, in input.State) {
@@ -125,12 +130,8 @@ func (w *World) applyInput(dt float32, in input.State) {
 
 	if dir.X != 0 || dir.Y != 0 {
 		dir = dir.Norm()
-		fmt.Println("pos x: ", w.Player.Pos.X)
-		fmt.Println("pos y: ", w.Player.Pos.Y)
 		w.Player.Pos.X += dir.X * w.Player.Speed * dt
 		w.Player.Pos.Y += dir.Y * w.Player.Speed * dt
-		fmt.Println("pos x: ", w.Player.Pos.X)
-		fmt.Println("pos y: ", w.Player.Pos.Y)
 	}
 
 	// clamp to bounds
@@ -145,6 +146,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
 	camX := float32(sw)/2 - w.Player.Pos.X
 	camY := float32(sh)/2 - w.Player.Pos.Y
+
+	// offset camera for damage shake
+
+	camX += w.ShakeOff.X
+	camY += w.ShakeOff.Y
 
 	// world background``
 	vector.FillRect(
@@ -167,22 +173,138 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 	}
 
-	// enemies (centered react; replace wit )
+	// Enemy rendering with visual variety
 	for _, e := range w.Enemies {
-		clr := color.RGBA{220, 80, 80, 255}
-		if e.HitT > 0 {
-			clr = color.RGBA{255, 220, 220, 255}
-		}
-		vector.FillRect(
-			screen,
-			camX+e.Pos.X,
-			camY+e.Pos.Y,
-			e.R, e.R,
-			clr,
-			false,
-		)
-	}
+		ex := camX + e.Pos.X
+		ey := camY + e.Pos.Y
 
+		switch e.Kind {
+		case EnemyRunner:
+			// Fast, elongated diamond-like enemy (stretched horizontally)
+			clr := color.RGBA{240, 170, 60, 255}
+			if e.HitT > 0 {
+				clr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Draw as two overlapping rectangles to form diamond
+			// Horizontal part
+			vector.FillRect(
+				screen,
+				ex-e.R*1.2, ey-e.R*0.4,
+				e.R*2.4, e.R*0.8,
+				clr,
+				false,
+			)
+
+			// Vertical part (smaller)
+			vector.FillRect(
+				screen,
+				ex-e.R*0.4, ey-e.R*0.8,
+				e.R*0.8, e.R*1.6,
+				clr,
+				false,
+			)
+
+			// Bright center core
+			vector.FillRect(
+				screen,
+				ex-e.R*0.25, ey-e.R*0.25,
+				e.R*0.5, e.R*0.5,
+				color.RGBA{255, 220, 120, 255},
+				false,
+			)
+
+		case EnemyTank:
+			// Large, beefy tank with armor plating
+			baseClr := color.RGBA{170, 110, 240, 255}
+			if e.HitT > 0 {
+				baseClr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Large square body
+			vector.FillRect(
+				screen,
+				ex-e.R, ey-e.R,
+				e.R*2, e.R*2,
+				baseClr,
+				false,
+			)
+
+			// Armor plates (dark lines)
+			darkClr := color.RGBA{120, 70, 180, 255}
+
+			// Horizontal armor lines
+			vector.FillRect(
+				screen,
+				ex-e.R*0.9, ey-e.R*0.4,
+				e.R*1.8, e.R*0.2,
+				darkClr,
+				false,
+			)
+			vector.FillRect(
+				screen,
+				ex-e.R*0.9, ey+e.R*0.2,
+				e.R*1.8, e.R*0.2,
+				darkClr,
+				false,
+			)
+
+			// Vertical center line
+			vector.FillRect(
+				screen,
+				ex-e.R*0.1, ey-e.R*0.9,
+				e.R*0.2, e.R*1.8,
+				darkClr,
+				false,
+			)
+
+			// Core/weak point
+			vector.FillRect(
+				screen,
+				ex-e.R*0.3, ey-e.R*0.3,
+				e.R*0.6, e.R*0.6,
+				color.RGBA{220, 160, 255, 255},
+				false,
+			)
+
+		default: // EnemyNormal
+			// Standard circular enemy
+			clr := color.RGBA{220, 80, 80, 255}
+			if e.HitT > 0 {
+				clr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Main body (circle approximation with square)
+			vector.FillRect(
+				screen,
+				ex-e.R, ey-e.R,
+				e.R*2, e.R*2,
+				clr,
+				false,
+			)
+
+			// Make it more circular by adding corner fills
+			sz := e.R * 0.6
+			// Top-left
+			vector.FillRect(screen, ex-e.R, ey-e.R, sz, sz, clr, false)
+			// Top-right
+			vector.FillRect(screen, ex+e.R-sz, ey-e.R, sz, sz, clr, false)
+			// Bottom-left
+			vector.FillRect(screen, ex-e.R, ey+e.R-sz, sz, sz, clr, false)
+			// Bottom-right
+			vector.FillRect(screen, ex+e.R-sz, ey+e.R-sz, sz, sz, clr, false)
+
+			// Dark center spot (eye)
+			eyeSize := e.R * 0.5
+			vector.FillRect(
+				screen,
+				ex-eyeSize/2, ey-eyeSize/2,
+				eyeSize, eyeSize,
+				color.RGBA{150, 40, 40, 255},
+				false,
+			)
+		}
+	}
 	// attack line (fade normalized)
 	if w.LastAttackT > 0 {
 		const lastAttackMax float32 = 0.08
@@ -225,10 +347,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
-		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nKills: %d  Enemies: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nKills: %d\nEnemies: %d  Orbs: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
 		w.Player.Level, w.Player.XP, w.Player.XPToNext,
-		w.Stats.EnemiesKilled, len(w.Enemies),
+		w.Stats.EnemiesKilled,
+		len(w.Enemies), len(w.Orbs),
 		w.spawnEvery,
 		w.TimeSurvived,
 	)
@@ -248,11 +371,12 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
 		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 110)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time: %.1fs", w.TimeSurvived), 8, 130)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level: %d", w.Player.Level), 8, 150)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time Survived: %.1fs", w.TimeSurvived), 8, 130)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level Reached: %d", w.Player.Level), 8, 150)
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kills: %d", w.Stats.EnemiesKilled), 8, 170)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), 8, 190)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), 8, 210)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies Spawned: %d", w.Stats.EnemiesSpawned), 8, 190)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), 8, 210)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), 8, 230)
 
 		return
 	}
@@ -269,25 +393,14 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 
 		// menu text
-		x := 12
-		y := 120
-		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", x, y)
-		y += 18
-
+		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", 12, 120)
 		o0 := w.Upgrade.Option[0]
 		o1 := w.Upgrade.Option[1]
-
-		ebitenutil.DebugPrintAt(screen, o0.Title, x, y)
-		y += 16
-		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, x, y)
-		y += 22
-
-		ebitenutil.DebugPrintAt(screen, o1.Title, x, y)
-		y += 16
-		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, x, y)
-		y += 22
-
-		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", x, y)
+		ebitenutil.DebugPrintAt(screen, o0.Title, 12, 138)
+		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, 12, 152)
+		ebitenutil.DebugPrintAt(screen, o1.Title, 12, 174)
+		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, 12, 190)
+		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", 12, 212)
 	}
 
 	// Pause overlay

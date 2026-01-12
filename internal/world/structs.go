@@ -19,6 +19,7 @@ type World struct {
 
 	inbox []Msg // TODO: use channel
 
+	Cfg     Config
 	Orbs    []XPOrb
 	Player  Player
 	Enemies []Enemy
@@ -46,6 +47,11 @@ type World struct {
 	RampEvery     float32
 	RampFactor    float32
 	SoftEnemyCap  int
+
+	// screen shake state
+	ShakeT     float32
+	ShakePhase float32
+	ShakeOff   Vec2
 }
 
 type Player struct {
@@ -69,6 +75,10 @@ type Player struct {
 	Level    int
 	XP       float32
 	XPToNext float32
+	XPMagnet float32
+
+	// knockback
+	KnockVel Vec2
 }
 
 type Enemy struct {
@@ -78,10 +88,14 @@ type Enemy struct {
 
 	// combat
 	HP    float32
-	MaxHp float32
+	MaxHP float32
 	HitT  float32 // hit flash timer (seconds)
 
 	TouchDamage float32 // damage when colliding with player
+
+	// archetype
+	Kind    EnemyKind
+	XPValue float32
 }
 
 type Stats struct {
@@ -90,3 +104,5 @@ type Stats struct {
 	DamageTaken    float32
 	XPCollected    float32
 }
+
+type EnemyKind int
