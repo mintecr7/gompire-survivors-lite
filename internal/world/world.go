@@ -228,10 +228,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
-		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nKills: %d  Enemies: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nKills: %d\nEnemies: %d  Orbs: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
 		w.Player.Level, w.Player.XP, w.Player.XPToNext,
-		w.Stats.EnemiesKilled, len(w.Enemies),
+		w.Stats.EnemiesKilled,
+		len(w.Enemies), len(w.Orbs),
 		w.spawnEvery,
 		w.TimeSurvived,
 	)
@@ -251,11 +252,12 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
 		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 110)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time: %.1fs", w.TimeSurvived), 8, 130)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level: %d", w.Player.Level), 8, 150)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time Survived: %.1fs", w.TimeSurvived), 8, 130)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level Reached: %d", w.Player.Level), 8, 150)
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kills: %d", w.Stats.EnemiesKilled), 8, 170)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), 8, 190)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), 8, 210)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies Spawned: %d", w.Stats.EnemiesSpawned), 8, 190)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), 8, 210)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), 8, 230)
 
 		return
 	}
