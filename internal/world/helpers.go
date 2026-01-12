@@ -305,7 +305,8 @@ func (w *World) updateXPOrbs(dt float32) {
 	_ = dt // reserved for future motion/magnetism
 
 	p := w.Player.Pos
-	pickupR := w.Player.R + w.Cfg.XPPickupPadding // pickup padding
+	pickupR := w.Player.R + w.Cfg.XPPickupPadding + w.Player.XPMagnet
+	// pickup padding
 
 	for i := 0; i < len(w.Orbs); {
 		o := w.Orbs[i]

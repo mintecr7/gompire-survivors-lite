@@ -75,6 +75,7 @@ type Player struct {
 	Level    int
 	XP       float32
 	XPToNext float32
+	XPMagnet float32
 
 	// knockback
 	KnockVel Vec2

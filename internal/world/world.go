@@ -36,6 +36,7 @@ func NewWorld(w, h float32) *World {
 		Level:    1,
 		XP:       0,
 		XPToNext: cfg.XPToNext(1),
+		XPMagnet: 10,
 	}
 	return &World{
 		W: w, H: h,
