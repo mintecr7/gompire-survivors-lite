@@ -123,12 +123,8 @@ func (w *World) applyInput(dt float32, in input.State) {
 
 	if dir.X != 0 || dir.Y != 0 {
 		dir = dir.Norm()
-		// fmt.Println("pos x: ", w.Player.Pos.X)
-		// fmt.Println("pos y: ", w.Player.Pos.Y)
 		w.Player.Pos.X += dir.X * w.Player.Speed * dt
 		w.Player.Pos.Y += dir.Y * w.Player.Speed * dt
-		// fmt.Println("pos x: ", w.Player.Pos.X)
-		// fmt.Println("pos y: ", w.Player.Pos.Y)
 	}
 
 	// clamp to bounds
@@ -274,25 +270,14 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 
 		// menu text
-		x := 12
-		y := 120
-		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", x, y)
-		y += 18
-
+		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", 12, 120)
 		o0 := w.Upgrade.Option[0]
 		o1 := w.Upgrade.Option[1]
-
-		ebitenutil.DebugPrintAt(screen, o0.Title, x, y)
-		y += 16
-		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, x, y)
-		y += 22
-
-		ebitenutil.DebugPrintAt(screen, o1.Title, x, y)
-		y += 16
-		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, x, y)
-		y += 22
-
-		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", x, y)
+		ebitenutil.DebugPrintAt(screen, o0.Title, 12, 138)
+		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, 12, 152)
+		ebitenutil.DebugPrintAt(screen, o1.Title, 12, 174)
+		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, 12, 190)
+		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", 12, 212)
 	}
 
 	// Pause overlay
