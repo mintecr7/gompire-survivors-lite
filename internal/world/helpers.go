@@ -29,10 +29,11 @@ func (w *World) updateSpawning(dt float32) {
 }
 
 func (w *World) spawnEnemyNearPlayer() {
-	// Spawn in a ring around the player, slightly off-screen-ish.
-	cfg := w.Cfg
-	spawnRadius := cfg.SpawnRadius
 
+	cfg := w.Cfg
+
+	spawnRadius := cfg.SpawnRadius
+	// spawn position in a ring around player
 	ang := w.rng.Float32() * 2 * math.Pi
 	off := Vec2{
 		X: float32(math.Cos(float64(ang))) * spawnRadius,
@@ -45,15 +46,39 @@ func (w *World) spawnEnemyNearPlayer() {
 	pos.X = clamp(pos.X, 0, w.W)
 	pos.Y = clamp(pos.Y, 0, w.H)
 
-	w.Enemies = append(w.Enemies, Enemy{
-		Pos:         pos,
-		Speed:       cfg.EnemySpeed,
-		R:           cfg.EnemyRadius,
-		MaxHp:       cfg.EnemyHP,
-		HP:          cfg.EnemyHP,
-		TouchDamage: cfg.EnemyTouchDamage,
-	})
+	kind := w.chooseEnemyKind()
 
+	e := Enemy{
+		Pos:  pos,
+		Kind: kind,
+	}
+
+	switch kind {
+	case EnemyTank:
+		e.R = cfg.EnemyTankRadius
+		e.Speed = cfg.EnemyTankSpeed
+		e.MaxHP = cfg.EnemyTankHP
+		e.HP = cfg.EnemyTankHP
+		e.TouchDamage = cfg.EnemyTankTouchDamage
+		e.XPValue = cfg.EnemyTankXP
+
+	case EnemyRunner:
+		e.R = cfg.EnemyRunnerRadius
+		e.Speed = cfg.EnemyRunnerSpeed
+		e.MaxHP = cfg.EnemyRunnerHP
+		e.HP = cfg.EnemyRunnerHP
+		e.TouchDamage = cfg.EnemyRunnerTouchDamage
+		e.XPValue = cfg.EnemyRunnerXP
+
+	default: // normal
+		e.R = cfg.EnemyRadius
+		e.Speed = cfg.EnemySpeed
+		e.MaxHP = cfg.EnemyHP
+		e.HP = cfg.EnemyHP
+		e.TouchDamage = cfg.EnemyTouchDamage
+		e.XPValue = cfg.XPPerKill
+	}
+	w.Enemies = append(w.Enemies, e)
 	w.Stats.EnemiesSpawned++
 }
 
@@ -140,8 +165,10 @@ func (w *World) updateCombat(dt float32) {
 
 	if e.HP <= 0 {
 		deathPos := e.Pos
-		w.spawnXPOrb(deathPos, w.Cfg.XPPerKill)
+		xp := e.XPValue
 		w.removeEnemyAt(idx)
+
+		w.spawnXPOrb(deathPos, xp)
 
 		w.Stats.EnemiesKilled++
 	}
@@ -324,6 +351,21 @@ func (w *World) updateLevelUp() {
 // ============================================================================
 // UTILITY & HELPER FUNCTIONS
 // ============================================================================
+
+func (w *World) chooseEnemyKind() EnemyKind {
+	// deterministic pattern based on spawn count
+	// every 12th is a tank, every 4th is a runner, otherwise normal
+
+	n := w.Stats.EnemiesSpawned + 1
+
+	if n%12 == 0 {
+		return EnemyTank
+	}
+	if n%4 == 0 {
+		return EnemyRunner
+	}
+	return EnemyNormal
+}
 
 func (w *World) nearestEnemyInRange(p Vec2, rng float32) int {
 	if len(w.Enemies) == 0 {

@@ -87,10 +87,14 @@ type Enemy struct {
 
 	// combat
 	HP    float32
-	MaxHp float32
+	MaxHP float32
 	HitT  float32 // hit flash timer (seconds)
 
 	TouchDamage float32 // damage when colliding with player
+
+	// archetype
+	Kind    EnemyKind
+	XPValue float32
 }
 
 type Stats struct {
@@ -99,3 +103,5 @@ type Stats struct {
 	DamageTaken    float32
 	XPCollected    float32
 }
+
+type EnemyKind int

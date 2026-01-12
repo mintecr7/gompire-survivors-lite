@@ -12,6 +12,12 @@ import (
 	"horde-lab/internal/shared/input"
 )
 
+const (
+	EnemyNormal EnemyKind = iota
+	EnemyRunner
+	EnemyTank
+)
+
 func NewWorld(w, h float32) *World {
 	cfg := DefaultConfig()
 	pl := Player{
@@ -166,22 +172,138 @@ func (w *World) Draw(screen *ebiten.Image) {
 		)
 	}
 
-	// enemies (centered react; replace wit )
+	// Enemy rendering with visual variety
 	for _, e := range w.Enemies {
-		clr := color.RGBA{220, 80, 80, 255}
-		if e.HitT > 0 {
-			clr = color.RGBA{255, 220, 220, 255}
-		}
-		vector.FillRect(
-			screen,
-			camX+e.Pos.X,
-			camY+e.Pos.Y,
-			e.R, e.R,
-			clr,
-			false,
-		)
-	}
+		ex := camX + e.Pos.X
+		ey := camY + e.Pos.Y
 
+		switch e.Kind {
+		case EnemyRunner:
+			// Fast, elongated diamond-like enemy (stretched horizontally)
+			clr := color.RGBA{240, 170, 60, 255}
+			if e.HitT > 0 {
+				clr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Draw as two overlapping rectangles to form diamond
+			// Horizontal part
+			vector.FillRect(
+				screen,
+				ex-e.R*1.2, ey-e.R*0.4,
+				e.R*2.4, e.R*0.8,
+				clr,
+				false,
+			)
+
+			// Vertical part (smaller)
+			vector.FillRect(
+				screen,
+				ex-e.R*0.4, ey-e.R*0.8,
+				e.R*0.8, e.R*1.6,
+				clr,
+				false,
+			)
+
+			// Bright center core
+			vector.FillRect(
+				screen,
+				ex-e.R*0.25, ey-e.R*0.25,
+				e.R*0.5, e.R*0.5,
+				color.RGBA{255, 220, 120, 255},
+				false,
+			)
+
+		case EnemyTank:
+			// Large, beefy tank with armor plating
+			baseClr := color.RGBA{170, 110, 240, 255}
+			if e.HitT > 0 {
+				baseClr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Large square body
+			vector.FillRect(
+				screen,
+				ex-e.R, ey-e.R,
+				e.R*2, e.R*2,
+				baseClr,
+				false,
+			)
+
+			// Armor plates (dark lines)
+			darkClr := color.RGBA{120, 70, 180, 255}
+
+			// Horizontal armor lines
+			vector.FillRect(
+				screen,
+				ex-e.R*0.9, ey-e.R*0.4,
+				e.R*1.8, e.R*0.2,
+				darkClr,
+				false,
+			)
+			vector.FillRect(
+				screen,
+				ex-e.R*0.9, ey+e.R*0.2,
+				e.R*1.8, e.R*0.2,
+				darkClr,
+				false,
+			)
+
+			// Vertical center line
+			vector.FillRect(
+				screen,
+				ex-e.R*0.1, ey-e.R*0.9,
+				e.R*0.2, e.R*1.8,
+				darkClr,
+				false,
+			)
+
+			// Core/weak point
+			vector.FillRect(
+				screen,
+				ex-e.R*0.3, ey-e.R*0.3,
+				e.R*0.6, e.R*0.6,
+				color.RGBA{220, 160, 255, 255},
+				false,
+			)
+
+		default: // EnemyNormal
+			// Standard circular enemy
+			clr := color.RGBA{220, 80, 80, 255}
+			if e.HitT > 0 {
+				clr = color.RGBA{255, 255, 255, 255}
+			}
+
+			// Main body (circle approximation with square)
+			vector.FillRect(
+				screen,
+				ex-e.R, ey-e.R,
+				e.R*2, e.R*2,
+				clr,
+				false,
+			)
+
+			// Make it more circular by adding corner fills
+			sz := e.R * 0.6
+			// Top-left
+			vector.FillRect(screen, ex-e.R, ey-e.R, sz, sz, clr, false)
+			// Top-right
+			vector.FillRect(screen, ex+e.R-sz, ey-e.R, sz, sz, clr, false)
+			// Bottom-left
+			vector.FillRect(screen, ex-e.R, ey+e.R-sz, sz, sz, clr, false)
+			// Bottom-right
+			vector.FillRect(screen, ex+e.R-sz, ey+e.R-sz, sz, sz, clr, false)
+
+			// Dark center spot (eye)
+			eyeSize := e.R * 0.5
+			vector.FillRect(
+				screen,
+				ex-eyeSize/2, ey-eyeSize/2,
+				eyeSize, eyeSize,
+				color.RGBA{150, 40, 40, 255},
+				false,
+			)
+		}
+	}
 	// attack line (fade normalized)
 	if w.LastAttackT > 0 {
 		const lastAttackMax float32 = 0.08

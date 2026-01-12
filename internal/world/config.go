@@ -46,6 +46,21 @@ type Config struct {
 	HitShakeMagnitude float32
 	HitShakeFreq1     float32
 	HitShakeFreq2     float32
+
+	// Enemy archetypes
+	// 1. Runner
+	EnemyRunnerRadius      float32
+	EnemyRunnerSpeed       float32
+	EnemyRunnerHP          float32
+	EnemyRunnerTouchDamage float32
+	EnemyRunnerXP          float32
+
+	// 2. Tank
+	EnemyTankRadius      float32
+	EnemyTankSpeed       float32
+	EnemyTankHP          float32
+	EnemyTankTouchDamage float32
+	EnemyTankXP          float32
 }
 
 func DefaultConfig() Config {
@@ -87,6 +102,18 @@ func DefaultConfig() Config {
 		HitShakeMagnitude: 6.0,
 		HitShakeFreq1:     26.0,
 		HitShakeFreq2:     33.0,
+
+		EnemyRunnerRadius:      7,
+		EnemyRunnerSpeed:       190,
+		EnemyRunnerHP:          30,
+		EnemyRunnerTouchDamage: 8,
+		EnemyRunnerXP:          4,
+
+		EnemyTankRadius:      14,
+		EnemyTankSpeed:       75,
+		EnemyTankHP:          140,
+		EnemyTankTouchDamage: 18,
+		EnemyTankXP:          12,
 	}
 }
 
