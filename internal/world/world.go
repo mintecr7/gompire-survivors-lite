@@ -394,8 +394,8 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 		// menu text
 		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", 12, 120)
-		o0 := w.Upgrade.Option[0]
-		o1 := w.Upgrade.Option[1]
+		o0 := w.Upgrade.Options[0]
+		o1 := w.Upgrade.Options[1]
 		ebitenutil.DebugPrintAt(screen, o0.Title, 12, 138)
 		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, 12, 152)
 		ebitenutil.DebugPrintAt(screen, o1.Title, 12, 174)

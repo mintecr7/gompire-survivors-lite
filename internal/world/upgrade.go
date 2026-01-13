@@ -1,12 +1,11 @@
 package world
 
-import "fmt"
-
 type UpgradeKind int
 
 const (
 	UpDamage UpgradeKind = iota
 	UpAttackSpeed
+	UpMagnet
 )
 
 type UpgradeOption struct {
@@ -17,7 +16,7 @@ type UpgradeOption struct {
 
 type UpgradeMenu struct {
 	Active  bool
-	Option  [2]UpgradeOption
+	Options [2]UpgradeOption
 	Pending int // how many level-up choices still need to be picked
 }
 
@@ -27,18 +26,41 @@ func (w *World) openUpgradeMenuIfNeeded() {
 	}
 
 	// v0.1: always present two fixed choices
-	w.Upgrade.Option[0] = UpgradeOption{
-		Kind:  UpDamage,
-		Title: "1) +Damage",
-		Desc:  fmt.Sprintf("Increase damage by +%.0f", 10.0),
+	pool := []UpgradeOption{
+		{
+			Kind:  UpDamage,
+			Title: "1) +Damage",
+			Desc:  "Increase damage by +10",
+		},
+		{
+			Kind:  UpAttackSpeed,
+			Title: "2) Faster Attack",
+			Desc:  "Reduce attack cooldown by 15%",
+		},
+		{
+			Kind:  UpMagnet,
+			Title: "Magnet",
+			Desc:  "Increase XP pickup radius by +15",
+		},
 	}
 
-	w.Upgrade.Option[1] = UpgradeOption{
-		Kind:  UpAttackSpeed,
-		Title: "2) Faster Attack",
-		Desc:  "Reduce attack cooldown by 15%",
-	}
+	// pick 2 distinct options from pool
+	// First pick:
+	i := w.rng.Intn(len(pool))
+	first := pool[i]
+	pool = append(pool[:i], pool[i+1:]...)
 
+	// Second pick:
+	j := w.rng.Intn(len(pool))
+	second := pool[j]
+
+	// Assign to menu. We want keys 1 and 2 to always correspond.
+	// Ensure the titles match "1)" and "2)".
+	first.Title = "1) " + stripPrefix(first.Title)
+	second.Title = "2) " + stripPrefix(second.Title)
+
+	w.Upgrade.Options[0] = first
+	w.Upgrade.Options[1] = second
 	w.Upgrade.Active = true
 }
 
@@ -51,7 +73,7 @@ func (w *World) applyUpGradeChoice(choice int) {
 		return
 	}
 
-	opt := w.Upgrade.Option[choice]
+	opt := w.Upgrade.Options[choice]
 
 	switch opt.Kind {
 	case UpDamage:
@@ -63,6 +85,8 @@ func (w *World) applyUpGradeChoice(choice int) {
 		if w.Player.AttackTimer > w.Player.AttackCooldown {
 			w.Player.AttackTimer = w.Player.AttackCooldown
 		}
+	case UpMagnet:
+		w.Player.XPMagnet += 15
 	}
 
 	// consume one pending upgrade choice
@@ -85,4 +109,11 @@ func maxf(a, b float32) float32 {
 		return a
 	}
 	return b
+}
+
+func stripPrefix(s string) string {
+	if len(s) >= 3 && (s[0] == '1' || s[0] == '2') && s[1] == ')' {
+		return s[3:]
+	}
+	return s
 }
