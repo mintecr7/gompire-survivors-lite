@@ -124,7 +124,7 @@ This pattern directly carries over to the multiplayer successor, where network g
 
 ### Roadmap
 
-- **v0.1**: basic loop (move, spawn, hit, die, level up)
+- **:white_check_mark:** **v0.1**: basic loop (move, spawn, hit, die, level up)
 - **v0.2**: async asset loader + telemetry goroutine
 - **v0.3**: worker pool for AI intent/jobs
 - **v0.4**: persistence + replay experiments
