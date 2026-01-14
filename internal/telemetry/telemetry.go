@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"horde-lab/internal/commons/logger_config"
+	"log/slog"
 	"time"
 )
 
@@ -23,25 +24,36 @@ func NewSink() *Sink {
 		quit: make(chan struct{}),
 	}
 	go s.loop()
-
 	return s
+}
+
+// Close stops the sink loop
+func (s *Sink) Close() {
+	// safe even if called multiple times? only if you guard it; keeping simple:
+	close(s.quit)
 }
 
 func (s *Sink) loop() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	var kills int
-	var dmg float32
-	var frames int
-	var dtSum float32
+	var (
+		kills  int
+		dmg    float32
+		frames int
+		dtSum  float32
+	)
 
 	for {
 		select {
 		case <-s.quit:
 			return
 
-		case ev := <-s.In:
+		case ev, ok := <-s.In:
+			if !ok {
+				// input channel closed by producer => stop the loop
+				return
+			}
 			switch ev.Kind {
 			case "kill":
 				kills += ev.I
@@ -53,14 +65,20 @@ func (s *Sink) loop() {
 			}
 
 		case <-ticker.C:
-			avgDt := float32(0)
+			var avgDt float32
 			if frames > 0 {
 				avgDt = dtSum / float32(frames)
 			}
+
+			// Structured logging (slog-style)
 			logger_config.Logger.Info(
-				"[telemetry] kills=%d dmg=%.0f frames=%d avgDt=%.4fs",
-				kills, dmg, frames, avgDt,
+				"telemetry batch",
+				slog.Int("kills", kills),
+				slog.Float64("dmg", float64(dmg)),
+				slog.Int("frames", frames),
+				slog.Float64("avg_dt_s", float64(avgDt)),
 			)
+
 			// reset batch
 			kills = 0
 			dmg = 0
