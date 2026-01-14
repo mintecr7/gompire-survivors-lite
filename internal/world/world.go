@@ -18,6 +18,10 @@ const (
 	EnemyTank
 )
 
+type AssetProvider interface {
+	Get(key string) *ebiten.Image
+}
+
 func NewWorld(w, h float32) *World {
 	cfg := DefaultConfig()
 	pl := Player{
@@ -139,7 +143,7 @@ func (w *World) applyInput(dt float32, in input.State) {
 	w.Player.Pos.Y = clamp(w.Player.Pos.Y, 0, w.H)
 }
 
-func (w *World) Draw(screen *ebiten.Image) {
+func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 	screen.Fill(color.RGBA{15, 15, 18, 255})
 
 	// camera centered on player

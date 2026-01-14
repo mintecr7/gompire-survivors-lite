@@ -2,6 +2,7 @@ package game
 
 import (
 	// "fmt"
+	"horde-lab/internal/assets"
 	"horde-lab/internal/world"
 	"time"
 
@@ -16,18 +17,30 @@ type Game struct {
 	accum     time.Duration
 	last      time.Time
 	fixedStep time.Duration
+
+	// asset loader
+	loader *assets.Loader
+	assets *AssetManager
 }
 
 func New() *Game {
-	return &Game{
+	g := &Game{
 		w:         world.NewWorld(2000, 2000), // world size
 		last:      time.Now(),
 		fixedStep: time.Second / 60,
 	}
+	g.loader = assets.NewLoader()
+	g.assets = NewAssetManager(g.loader)
+
+	// schedule loads early
+	g.assets.Request("player", "assets/player.webp")
+	return g
 }
 
 func (g *Game) Update() error {
 	now := time.Now()
+	g.assets.Poll()
+
 	frameDt := now.Sub(g.last)
 	g.last = now
 
@@ -73,9 +86,13 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.w.Draw(screen)
+	g.w.Draw(screen, g.assets)
 }
 
 func (g *Game) Layout(outsideW, outsideH int) (int, int) {
 	return outsideW, outsideH
+}
+
+func (g *Game) Close() {
+	g.loader.Close()
 }
