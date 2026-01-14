@@ -266,40 +266,26 @@ func (w *World) Draw(screen *ebiten.Image) {
 				color.RGBA{220, 160, 255, 255},
 				false,
 			)
-
 		default: // EnemyNormal
-			// Standard circular enemy
 			clr := color.RGBA{220, 80, 80, 255}
 			if e.HitT > 0 {
-				clr = color.RGBA{255, 255, 255, 255}
+				clr = color.RGBA{255, 180, 180, 255}
 			}
 
-			// Main body (circle approximation with square)
-			vector.FillRect(
+			vector.FillCircle(
 				screen,
-				ex-e.R, ey-e.R,
-				e.R*2, e.R*2,
+				ex, ey,
+				e.R,
 				clr,
 				false,
 			)
 
-			// Make it more circular by adding corner fills
-			sz := e.R * 0.6
-			// Top-left
-			vector.FillRect(screen, ex-e.R, ey-e.R, sz, sz, clr, false)
-			// Top-right
-			vector.FillRect(screen, ex+e.R-sz, ey-e.R, sz, sz, clr, false)
-			// Bottom-left
-			vector.FillRect(screen, ex-e.R, ey+e.R-sz, sz, sz, clr, false)
-			// Bottom-right
-			vector.FillRect(screen, ex+e.R-sz, ey+e.R-sz, sz, sz, clr, false)
-
-			// Dark center spot (eye)
-			eyeSize := e.R * 0.5
-			vector.FillRect(
+			// small "eye"
+			eyeR := e.R * 0.35
+			vector.FillCircle(
 				screen,
-				ex-eyeSize/2, ey-eyeSize/2,
-				eyeSize, eyeSize,
+				ex, ey,
+				eyeR,
 				color.RGBA{150, 40, 40, 255},
 				false,
 			)
@@ -394,8 +380,8 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 		// menu text
 		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", 12, 120)
-		o0 := w.Upgrade.Option[0]
-		o1 := w.Upgrade.Option[1]
+		o0 := w.Upgrade.Options[0]
+		o1 := w.Upgrade.Options[1]
 		ebitenutil.DebugPrintAt(screen, o0.Title, 12, 138)
 		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, 12, 152)
 		ebitenutil.DebugPrintAt(screen, o1.Title, 12, 174)
