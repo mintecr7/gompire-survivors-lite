@@ -69,36 +69,49 @@ A playable 5–10 minute loop:
 
 ---
 
-## Tech stack (initial)
+## Tech stack (current)
 
-- Go (latest stable recommended)
-- Rendering/input: **Ebiten** (likely), but kept modular so the core simulation can run headless.
+- Go **1.24+**
+- Rendering/input: **Ebiten v2**
 - Embeddings/networking are not part of this repo (those come later in the successor project).
 
 ---
 
-## Suggested project layout
+## Current project layout
 
-This is the intended structure once code starts landing:
+The repo currently looks like this:
 
-/cmd/game # main entrypoint (client)
-/internal/world # simulation loop, systems, entities
-/internal/render # renderer adapter (Ebiten or other)
-/internal/assets # async asset pipeline
-/internal/jobs # worker pool + job definitions
-/internal/telemetry # logging/metrics
-/internal/math # vector helpers, spatial hash, etc.
-/docs # design notes, decisions, diagrams
+`/cmd/game` - main entrypoint (Ebiten run loop)  
+`/internal/game` - fixed-step game integration, input handling, asset polling  
+`/internal/world` - deterministic world state, systems, combat, leveling, drawing  
+`/internal/assets` - async asset loader (request/result channels)  
+`/internal/telemetry` - telemetry sink/batching prototype  
+`/internal/shared/input` - shared input state types  
+`/internal/commons/logger_config` - shared structured logger setup  
+`/internal/render` - render package placeholder (future split from world)
 
 
 ---
 
-## Getting started (once code exists)
+## Getting started
+
+### Prerequisites
+```bash
+go version
+```
+Use Go 1.24 or newer.
 
 ### Run
 ```bash
 go run ./cmd/game
 ```
+
+### Controls
+- `WASD` or Arrow keys: move
+- `Space`: pause/resume
+- `1` / `2`: choose level-up upgrade
+- `R` or `Enter`: restart (when paused or game over)
+
 ### Test
 ```bash
 go test ./...
