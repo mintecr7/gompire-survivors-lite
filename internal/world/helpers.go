@@ -49,9 +49,11 @@ func (w *World) spawnEnemyNearPlayer() {
 	kind := w.chooseEnemyKind()
 
 	e := Enemy{
+		ID:   w.nextEnemyID,
 		Pos:  pos,
 		Kind: kind,
 	}
+	w.nextEnemyID++
 
 	switch kind {
 	case EnemyTank:
@@ -107,7 +109,7 @@ func (w *World) updateDifficulty() {
 // ENEMY MOVEMENT & AI
 // ============================================================================
 
-func (w *World) updateEnemies(dt float32) {
+func (w *World) updateEnemies(dt float32, intents map[int]Vec2) {
 	p := w.Player.Pos
 	for i := range w.Enemies {
 		e := &w.Enemies[i]
@@ -118,11 +120,18 @@ func (w *World) updateEnemies(dt float32) {
 				e.HitT = 0
 			}
 		}
-		toP := p.Sub(e.Pos)
-		if toP.X == 0 && toP.Y == 0 {
+		dir, ok := intents[e.ID]
+		if !ok {
+			toP := p.Sub(e.Pos)
+			if toP.X == 0 && toP.Y == 0 {
+				continue
+			}
+			dir = toP.Norm()
+		}
+
+		if dir.X == 0 && dir.Y == 0 {
 			continue
 		}
-		dir := toP.Norm()
 		e.Pos = e.Pos.Add(dir.Mul(e.Speed * dt))
 
 		// Clamp
