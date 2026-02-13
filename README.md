@@ -138,7 +138,7 @@ This pattern directly carries over to the multiplayer successor, where network g
 ### Roadmap
 
 - **:white_check_mark:** **v0.1**: basic loop (move, spawn, hit, die, level up)
-- **v0.2**: async asset loader + telemetry goroutine
+- **:white_check_mark:** **v0.2**: async asset loader + telemetry goroutine
 - **v0.3**: worker pool for AI intent/jobs
 - **v0.4**: persistence + replay experiments
 - **v1.0**: "fun enough" release (balance + polish)
