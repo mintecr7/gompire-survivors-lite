@@ -5,6 +5,8 @@ import "testing"
 func TestWorldTickDeterministicSmoke(t *testing.T) {
 	w1 := NewWorld(2000, 2000)
 	w2 := NewWorld(2000, 2000)
+	defer w1.Close()
+	defer w2.Close()
 
 	const (
 		steps = 300
@@ -72,6 +74,9 @@ func assertWorldEquivalent(t *testing.T, a, b *World) {
 	for i := range a.Enemies {
 		ea := a.Enemies[i]
 		eb := b.Enemies[i]
+		if ea.ID != eb.ID {
+			t.Fatalf("enemy[%d] id mismatch: a=%d b=%d", i, ea.ID, eb.ID)
+		}
 		if ea.Kind != eb.Kind {
 			t.Fatalf("enemy[%d] kind mismatch: a=%d b=%d", i, ea.Kind, eb.Kind)
 		}

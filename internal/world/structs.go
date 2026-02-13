@@ -3,6 +3,7 @@ package world
 import (
 	"math/rand"
 
+	"horde-lab/internal/jobs"
 	"horde-lab/internal/shared/input"
 )
 
@@ -52,6 +53,14 @@ type World struct {
 	ShakeT     float32
 	ShakePhase float32
 	ShakeOff   Vec2
+
+	// v0.3 AI intents worker-pool pipeline
+	aiPool            *jobs.IntentPool
+	aiTick            uint64
+	aiPendingRequests map[uint64]jobs.IntentRequest
+	aiReadyResults    map[uint64]jobs.IntentResult
+
+	nextEnemyID int
 }
 
 type Player struct {
@@ -82,6 +91,8 @@ type Player struct {
 }
 
 type Enemy struct {
+	ID int
+
 	Pos   Vec2
 	Speed float32
 	R     float32

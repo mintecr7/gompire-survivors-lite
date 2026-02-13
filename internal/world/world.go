@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"horde-lab/internal/jobs"
 
 	"horde-lab/internal/shared/input"
 )
@@ -52,12 +53,27 @@ func NewWorld(w, h float32) *World {
 		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng: rand.New(rand.NewSource(1)),
+
+		aiPool:            newAIPool(),
+		aiPendingRequests: make(map[uint64]jobs.IntentRequest, 8),
+		aiReadyResults:    make(map[uint64]jobs.IntentResult, 8),
 	}
 }
 
 func (w *World) Reset() {
 	// keep constants/config; reset mutable state
+	oldPool := w.aiPool
 	*w = *NewWorld(w.W, w.H)
+	if oldPool != nil {
+		oldPool.Close()
+	}
+}
+
+func (w *World) Close() {
+	if w.aiPool != nil {
+		w.aiPool.Close()
+		w.aiPool = nil
+	}
 }
 
 func (w *World) Enqueue(m Msg) {
@@ -90,11 +106,15 @@ func (w *World) Tick(dt float32) {
 
 	}
 	w.inbox = w.inbox[:0]
+	w.drainAIResults()
 
 	// stop simulating during game over or menu
 	if w.GameOver || w.Upgrade.Active || w.Paused {
 		return
 	}
+
+	w.aiTick++
+	intents := w.consumeAIIntentsForTick(w.aiTick - 1)
 
 	if w.LastAttackT > 0 {
 		w.LastAttackT -= dt
@@ -107,13 +127,14 @@ func (w *World) Tick(dt float32) {
 
 	w.updateDifficulty()
 	w.updateSpawning(dt)
-	w.updateEnemies(dt)
+	w.updateEnemies(dt, intents)
 	w.updateCombat(dt)
 	w.updateKnockback(dt)
 	w.updateContactDamage(dt)
 	w.updateXPOrbs(dt)
 	w.updateShake(dt)
 	w.updateLevelUp()
+	w.submitAIJob(w.aiTick)
 }
 
 func (w *World) applyInput(dt float32, in input.State) {

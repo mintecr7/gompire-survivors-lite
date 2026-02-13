@@ -117,6 +117,10 @@ func (g *Game) Close() {
 		g.telemetry.Close()
 		g.telemetry = nil
 	}
+	if g.w != nil {
+		g.w.Close()
+		g.w = nil
+	}
 }
 
 func (g *Game) emitWorldDeltas(at time.Time) {
