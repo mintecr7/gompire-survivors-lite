@@ -42,7 +42,7 @@ func New() *Game {
 	g.telemetry = telemetry.NewSink()
 
 	// schedule loads early
-	g.assets.Request("player", "internal/assets/player.webp")
+	g.assets.Request("player", "player.webp")
 	return g
 }
 

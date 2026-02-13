@@ -4,6 +4,7 @@ import (
 	"horde-lab/internal/commons/logger_config"
 	"horde-lab/internal/world"
 	"log/slog"
+	"sync"
 	"time"
 )
 
@@ -14,15 +15,39 @@ type Event struct {
 	At   time.Time
 }
 
+type Batch struct {
+	Kills  int
+	Dmg    float32
+	Frames int
+	AvgDt  float32
+}
+
 type Sink struct {
 	In   chan Event
 	quit chan struct{}
+
+	closeOnce sync.Once
+	interval  time.Duration
+	emit      func(Batch)
 }
 
 func NewSink() *Sink {
+	return newSink(2*time.Second, nil)
+}
+
+func newSink(interval time.Duration, emit func(Batch)) *Sink {
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
+	if emit == nil {
+		emit = emitBatchLog
+	}
+
 	s := &Sink{
-		In:   make(chan Event, 256),
-		quit: make(chan struct{}),
+		In:       make(chan Event, 256),
+		quit:     make(chan struct{}),
+		interval: interval,
+		emit:     emit,
 	}
 	go s.loop()
 	return s
@@ -30,12 +55,13 @@ func NewSink() *Sink {
 
 // Close stops the sink loop
 func (s *Sink) Close() {
-	// safe even if called multiple times? only if you guard it; keeping simple:
-	close(s.quit)
+	s.closeOnce.Do(func() {
+		close(s.quit)
+	})
 }
 
 func (s *Sink) loop() {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
 	var (
@@ -71,14 +97,12 @@ func (s *Sink) loop() {
 				avgDt = dtSum / float32(frames)
 			}
 
-			// Structured logging (slog-style)
-			logger_config.Logger.Info(
-				"telemetry batch",
-				slog.Int("kills", kills),
-				slog.Float64("dmg", float64(dmg)),
-				slog.Int("frames", frames),
-				slog.Float64("avg_dt_s", float64(avgDt)),
-			)
+			s.emit(Batch{
+				Kills:  kills,
+				Dmg:    dmg,
+				Frames: frames,
+				AvgDt:  avgDt,
+			})
 
 			// reset batch
 			kills = 0
@@ -87,6 +111,16 @@ func (s *Sink) loop() {
 			dtSum = 0
 		}
 	}
+}
+
+func emitBatchLog(b Batch) {
+	logger_config.Logger.Info(
+		"telemetry batch",
+		slog.Int("kills", b.Kills),
+		slog.Float64("dmg", float64(b.Dmg)),
+		slog.Int("frames", b.Frames),
+		slog.Float64("avg_dt_s", float64(b.AvgDt)),
+	)
 }
 
 // Helper to emit snapshot metrics if you prefer
