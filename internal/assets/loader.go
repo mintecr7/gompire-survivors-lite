@@ -1,6 +1,7 @@
 package assets
 
 import (
+	_ "golang.org/x/image/webp"
 	"image"
 	_ "image/png"
 	"os"

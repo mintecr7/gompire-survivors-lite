@@ -3,6 +3,7 @@ package game
 import (
 	// "fmt"
 	"horde-lab/internal/assets"
+	"horde-lab/internal/telemetry"
 	"horde-lab/internal/world"
 	"time"
 
@@ -21,6 +22,13 @@ type Game struct {
 	// asset loader
 	loader *assets.Loader
 	assets *AssetManager
+
+	// telemetry sink
+	telemetry *telemetry.Sink
+
+	// cumulative stat baselines (for delta events)
+	lastKills  int
+	lastDamage float32
 }
 
 func New() *Game {
@@ -31,9 +39,10 @@ func New() *Game {
 	}
 	g.loader = assets.NewLoader()
 	g.assets = NewAssetManager(g.loader)
+	g.telemetry = telemetry.NewSink()
 
 	// schedule loads early
-	g.assets.Request("player", "assets/player.webp")
+	g.assets.Request("player", "internal/assets/player.webp")
 	return g
 }
 
@@ -48,6 +57,11 @@ func (g *Game) Update() error {
 	if frameDt > 250*time.Millisecond {
 		frameDt = 250 * time.Millisecond
 	}
+	g.sendTelemetry(telemetry.Event{
+		Kind: "frame",
+		F:    float32(frameDt.Seconds()),
+		At:   now,
+	})
 
 	g.accum += frameDt
 
@@ -81,6 +95,7 @@ func (g *Game) Update() error {
 		g.w.Tick(float32(g.fixedStep.Seconds()))
 		g.accum -= g.fixedStep
 	}
+	g.emitWorldDeltas(now)
 
 	return nil
 }
@@ -94,5 +109,56 @@ func (g *Game) Layout(outsideW, outsideH int) (int, int) {
 }
 
 func (g *Game) Close() {
-	g.loader.Close()
+	if g.loader != nil {
+		g.loader.Close()
+		g.loader = nil
+	}
+	if g.telemetry != nil {
+		g.telemetry.Close()
+		g.telemetry = nil
+	}
+}
+
+func (g *Game) emitWorldDeltas(at time.Time) {
+	stats := g.w.Stats
+
+	if stats.EnemiesKilled < g.lastKills {
+		g.lastKills = stats.EnemiesKilled
+	} else {
+		deltaKills := stats.EnemiesKilled - g.lastKills
+		if deltaKills > 0 {
+			g.sendTelemetry(telemetry.Event{
+				Kind: "kill",
+				I:    deltaKills,
+				At:   at,
+			})
+			g.lastKills = stats.EnemiesKilled
+		}
+	}
+
+	if stats.DamageTaken < g.lastDamage {
+		g.lastDamage = stats.DamageTaken
+	} else {
+		deltaDamage := stats.DamageTaken - g.lastDamage
+		if deltaDamage > 0 {
+			g.sendTelemetry(telemetry.Event{
+				Kind: "damage",
+				F:    deltaDamage,
+				At:   at,
+			})
+			g.lastDamage = stats.DamageTaken
+		}
+	}
+}
+
+func (g *Game) sendTelemetry(ev telemetry.Event) {
+	if g.telemetry == nil {
+		return
+	}
+
+	select {
+	case g.telemetry.In <- ev:
+	default:
+		// Drop on backpressure to avoid stalling the fixed-step loop.
+	}
 }
