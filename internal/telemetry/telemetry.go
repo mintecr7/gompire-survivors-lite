@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"horde-lab/internal/commons/logger_config"
+	"horde-lab/internal/world"
 	"log/slog"
 	"time"
 )
@@ -85,5 +86,13 @@ func (s *Sink) loop() {
 			frames = 0
 			dtSum = 0
 		}
+	}
+}
+
+// Helper to emit snapshot metrics if you prefer
+func EmitWorldSnapshot(ch chan<- Event, w *world.World) {
+	select {
+	case ch <- Event{Kind: "kill", I: w.Stats.EnemiesKilled, At: time.Now()}:
+	default:
 	}
 }
