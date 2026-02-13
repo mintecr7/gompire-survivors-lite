@@ -13,7 +13,9 @@ func main() {
 	ebiten.SetWindowTitle("Go-mpire survivors v0.1")
 
 	g := game.New()
+	defer g.Close()
+
 	if err := ebiten.RunGame(g); err != nil {
-		log.Fatal(err)
+		log.Printf("run game: %v", err)
 	}
 }

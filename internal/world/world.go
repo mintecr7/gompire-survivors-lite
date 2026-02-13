@@ -322,18 +322,41 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 	}
 
 	// draw player
-	pclr := color.RGBA{80, 200, 120, 255}
-	if w.Player.HurtTimer > 0 {
-		pclr = color.RGBA{200, 240, 200, 255}
+	px := camX + w.Player.Pos.X
+	py := camY + w.Player.Pos.Y
+
+	if playerImg := assets.Get("player"); playerImg != nil {
+		b := playerImg.Bounds()
+		iw, ih := b.Dx(), b.Dy()
+
+		if iw > 0 && ih > 0 {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(-float64(iw)/2, -float64(ih)/2)
+			op.GeoM.Scale(
+				float64((w.Player.R*2)/float32(iw)),
+				float64((w.Player.R*2)/float32(ih)),
+			)
+			op.GeoM.Translate(float64(px), float64(py))
+
+			if w.Player.HurtTimer > 0 {
+				op.ColorScale.Scale(1.25, 1.25, 1.25, 1.0)
+			}
+			screen.DrawImage(playerImg, op)
+		}
+	} else {
+		pclr := color.RGBA{80, 200, 120, 255}
+		if w.Player.HurtTimer > 0 {
+			pclr = color.RGBA{200, 240, 200, 255}
+		}
+		vector.FillCircle(
+			screen,
+			px,
+			py,
+			w.Player.R,
+			pclr,
+			false,
+		)
 	}
-	vector.FillCircle(
-		screen,
-		camX+w.Player.Pos.X,
-		camY+w.Player.Pos.Y,
-		w.Player.R,
-		pclr,
-		false,
-	)
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
