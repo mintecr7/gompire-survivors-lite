@@ -109,7 +109,7 @@ func (w *World) updateDifficulty() {
 // ENEMY MOVEMENT & AI
 // ============================================================================
 
-func (w *World) updateEnemies(dt float32, intents map[int]Vec2) {
+func (w *World) updateEnemies(dt float32, intents map[int]enemyMoveIntent) {
 	p := w.Player.Pos
 	for i := range w.Enemies {
 		e := &w.Enemies[i]
@@ -120,7 +120,13 @@ func (w *World) updateEnemies(dt float32, intents map[int]Vec2) {
 				e.HitT = 0
 			}
 		}
-		dir, ok := intents[e.ID]
+		speedScale := float32(1)
+		dir, ok := Vec2{}, false
+		if in, has := intents[e.ID]; has {
+			dir = in.Dir
+			speedScale = clamp(in.SpeedScale, 0.2, 1.5)
+			ok = true
+		}
 		if !ok {
 			toP := p.Sub(e.Pos)
 			if toP.X == 0 && toP.Y == 0 {
@@ -132,7 +138,7 @@ func (w *World) updateEnemies(dt float32, intents map[int]Vec2) {
 		if dir.X == 0 && dir.Y == 0 {
 			continue
 		}
-		e.Pos = e.Pos.Add(dir.Mul(e.Speed * dt))
+		e.Pos = e.Pos.Add(dir.Mul(e.Speed * speedScale * dt))
 
 		// Clamp
 		e.Pos.X = clamp(e.Pos.X, 0, w.W)

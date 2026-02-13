@@ -6,6 +6,13 @@ import (
 	"horde-lab/internal/jobs"
 )
 
+type enemyMoveIntent struct {
+	Dir            Vec2
+	SpeedScale     float32
+	PreferredRange float32
+	Mode           jobs.IntentMode
+}
+
 func newAIPool() *jobs.IntentPool {
 	workers := runtime.NumCPU() / 2
 	if workers < 1 {
@@ -37,7 +44,7 @@ func (w *World) drainAIResults() {
 	}
 }
 
-func (w *World) consumeAIIntentsForTick(tick uint64) map[int]Vec2 {
+func (w *World) consumeAIIntentsForTick(tick uint64) map[int]enemyMoveIntent {
 	if res, ok := w.aiReadyResults[tick]; ok {
 		delete(w.aiReadyResults, tick)
 		delete(w.aiPendingRequests, tick)
@@ -69,8 +76,10 @@ func (w *World) submitAIJob(tick uint64) {
 	for i, e := range w.Enemies {
 		req.Enemies[i] = jobs.EnemySnapshot{
 			EnemyID: e.ID,
+			Role:    roleFromEnemyKind(e.Kind),
 			X:       e.Pos.X,
 			Y:       e.Pos.Y,
+			Radius:  e.R,
 		}
 	}
 
@@ -103,14 +112,33 @@ func (w *World) pruneAIState(currentTick uint64) {
 	}
 }
 
-func intentsFromResult(res jobs.IntentResult) map[int]Vec2 {
+func intentsFromResult(res jobs.IntentResult) map[int]enemyMoveIntent {
 	if len(res.Intents) == 0 {
 		return nil
 	}
 
-	out := make(map[int]Vec2, len(res.Intents))
+	out := make(map[int]enemyMoveIntent, len(res.Intents))
 	for _, in := range res.Intents {
-		out[in.EnemyID] = Vec2{X: in.DirX, Y: in.DirY}
+		out[in.EnemyID] = enemyMoveIntent{
+			Dir: Vec2{
+				X: in.MoveX,
+				Y: in.MoveY,
+			},
+			SpeedScale:     in.SpeedScale,
+			PreferredRange: in.PreferredRange,
+			Mode:           in.Mode,
+		}
 	}
 	return out
+}
+
+func roleFromEnemyKind(kind EnemyKind) jobs.EnemyRole {
+	switch kind {
+	case EnemyRunner:
+		return jobs.EnemyRoleRunner
+	case EnemyTank:
+		return jobs.EnemyRoleTank
+	default:
+		return jobs.EnemyRoleNormal
+	}
 }
