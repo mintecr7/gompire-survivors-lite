@@ -32,3 +32,11 @@ func ReadSaveSnapshot() bool {
 func ReadLoadSnapshot() bool {
 	return inpututil.IsKeyJustPressed(ebiten.KeyF9)
 }
+
+func ReadSaveReplay() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF6)
+}
+
+func ReadStartReplay() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF10)
+}

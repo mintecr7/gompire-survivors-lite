@@ -34,6 +34,13 @@ type Game struct {
 	snapshotPath string
 	saveReply    chan error
 	loadReply    chan error
+
+	replayPath string
+	replay     world.ReplayFile
+	replayTick uint64
+
+	replayMode     bool
+	replayFrameIdx int
 }
 
 func New() *Game {
@@ -42,7 +49,9 @@ func New() *Game {
 		last:         time.Now(),
 		fixedStep:    time.Second / 60,
 		snapshotPath: ".dist/snapshot.json",
+		replayPath:   ".dist/replay.json",
 	}
+	g.resetReplayRecording()
 	g.loader = assets.NewLoader()
 	g.assets = NewAssetManager(g.loader)
 	g.telemetry = telemetry.NewSink()
@@ -72,14 +81,11 @@ func (g *Game) Update() error {
 	g.accum += frameDt
 
 	in := ReadInput()
+	restartPressed := ReadRestart()
+	pausePressed := ReadPaused()
+	choose0 := inpututil.IsKeyJustPressed(ebiten.Key1) || inpututil.IsKeyJustPressed(ebiten.KeyKP1)
+	choose1 := inpututil.IsKeyJustPressed(ebiten.Key2) || inpututil.IsKeyJustPressed(ebiten.KeyKP2)
 
-	if ReadRestart() {
-		g.w.Enqueue(world.MsgRestart{})
-	}
-
-	if ReadPaused() {
-		g.w.Enqueue(world.MsgTogglePause{})
-	}
 	if ReadSaveSnapshot() && g.saveReply == nil {
 		g.saveReply = make(chan error, 1)
 		g.w.Enqueue(world.MsgSaveSnapshot{
@@ -94,6 +100,16 @@ func (g *Game) Update() error {
 			Reply: g.loadReply,
 		})
 	}
+	if ReadSaveReplay() && !g.replayMode {
+		if err := world.SaveReplayFile(g.replayPath, g.replay); err != nil {
+			log.Printf("save replay: %v", err)
+		}
+	}
+	if ReadStartReplay() && !g.replayMode {
+		if err := g.startReplayFromFile(); err != nil {
+			log.Printf("start replay: %v", err)
+		}
+	}
 	// if in.Down || in.Left || in.Right || in.Up {
 
 	// 	fmt.Println("input values", in)
@@ -101,15 +117,39 @@ func (g *Game) Update() error {
 
 	// fixed-step simulation
 	for g.accum >= g.fixedStep {
-		g.w.Enqueue(world.MsgInput{Input: in})
+		if g.replayMode {
+			if g.replayFrameIdx >= len(g.replay.Frames) {
+				log.Printf("replay complete: frames=%d", len(g.replay.Frames))
+				g.replayMode = false
+				g.replayFrameIdx = 0
+				g.resetReplayRecording()
+				break
+			}
 
-		// upgrade selection (edge-triggered)
-		if inpututil.IsKeyJustPressed(ebiten.Key1) || inpututil.IsKeyJustPressed(ebiten.KeyKP1) {
-			g.w.Enqueue(world.MsgChooseUpgrade{Choice: 0})
-		}
+			frame := g.replay.Frames[g.replayFrameIdx]
+			g.enqueueReplayFrame(frame)
+			g.replayFrameIdx++
+		} else {
+			frame := world.ReplayFrame{
+				Tick:        g.replayTick,
+				Input:       in,
+				Choose:      -1,
+				TogglePause: pausePressed,
+				Restart:     restartPressed,
+			}
+			if choose0 {
+				frame.Choose = 0
+			} else if choose1 {
+				frame.Choose = 1
+			}
+			g.enqueueReplayFrame(frame)
+			g.replay.Frames = append(g.replay.Frames, frame)
+			g.replayTick++
 
-		if inpututil.IsKeyJustPressed(ebiten.Key2) || inpututil.IsKeyJustPressed(ebiten.KeyKP2) {
-			g.w.Enqueue(world.MsgChooseUpgrade{Choice: 1})
+			restartPressed = false
+			pausePressed = false
+			choose0 = false
+			choose1 = false
 		}
 
 		g.w.Tick(float32(g.fixedStep.Seconds()))
@@ -204,9 +244,59 @@ func (g *Game) pollPersistenceReplies() {
 		case err := <-g.loadReply:
 			if err != nil {
 				log.Printf("load snapshot: %v", err)
+			} else if !g.replayMode {
+				g.resetReplayRecording()
 			}
 			g.loadReply = nil
 		default:
 		}
 	}
+}
+
+func (g *Game) enqueueReplayFrame(frame world.ReplayFrame) {
+	g.w.Enqueue(world.MsgInput{Input: frame.Input})
+	if frame.Restart {
+		g.w.Enqueue(world.MsgRestart{})
+	}
+	if frame.TogglePause {
+		g.w.Enqueue(world.MsgTogglePause{})
+	}
+	if frame.Choose == 0 || frame.Choose == 1 {
+		g.w.Enqueue(world.MsgChooseUpgrade{Choice: frame.Choose})
+	}
+}
+
+func (g *Game) resetReplayRecording() {
+	initial := g.w.BuildSnapshot()
+	h, err := world.BuildReplayHeader(initial, float32(g.fixedStep.Seconds()))
+	if err != nil {
+		log.Printf("build replay header: %v", err)
+		h = world.ReplayHeader{
+			Version:          world.ReplayVersion,
+			FixedStepSeconds: float32(g.fixedStep.Seconds()),
+			Seed:             initial.RNGSeed,
+		}
+	}
+	g.replay = world.ReplayFile{
+		Header:  h,
+		Initial: initial,
+		Frames:  make([]world.ReplayFrame, 0, 4096),
+	}
+	g.replayTick = 0
+}
+
+func (g *Game) startReplayFromFile() error {
+	rep, err := world.LoadReplayFile(g.replayPath)
+	if err != nil {
+		return err
+	}
+	if err := g.w.ApplySnapshot(rep.Initial); err != nil {
+		return err
+	}
+
+	g.replay = rep
+	g.replayMode = true
+	g.replayFrameIdx = 0
+	g.replayTick = 0
+	return nil
 }
