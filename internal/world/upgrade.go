@@ -46,12 +46,12 @@ func (w *World) openUpgradeMenuIfNeeded() {
 
 	// pick 2 distinct options from pool
 	// First pick:
-	i := w.rng.Intn(len(pool))
+	i := w.randIntn(len(pool))
 	first := pool[i]
 	pool = append(pool[:i], pool[i+1:]...)
 
 	// Second pick:
-	j := w.rng.Intn(len(pool))
+	j := w.randIntn(len(pool))
 	second := pool[j]
 
 	// Assign to menu. We want keys 1 and 2 to always correspond.
