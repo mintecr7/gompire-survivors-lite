@@ -25,6 +25,7 @@ type AssetProvider interface {
 
 func NewWorld(w, h float32) *World {
 	cfg := DefaultConfig()
+	const seed int64 = 1
 	pl := Player{
 		Pos:   Vec2{X: w / 2, Y: h / 2},
 		Speed: cfg.PlayerSpeed,
@@ -52,7 +53,9 @@ func NewWorld(w, h float32) *World {
 		Orbs:       make([]XPOrb, 0, 256),
 		spawnEvery: cfg.BaseSpawnEvery,
 
-		rng: rand.New(rand.NewSource(1)),
+		rng:      rand.New(rand.NewSource(seed)),
+		rngSeed:  seed,
+		rngCalls: 0,
 
 		aiPool:            newAIPool(),
 		aiPendingRequests: make(map[uint64]jobs.IntentRequest, 8),
@@ -101,6 +104,22 @@ func (w *World) Tick(dt float32) {
 		case MsgTogglePause:
 			if !w.GameOver && !w.Upgrade.Active {
 				w.Paused = !w.Paused
+			}
+		case MsgSaveSnapshot:
+			err := w.SaveSnapshot(msg.Path)
+			if msg.Reply != nil {
+				select {
+				case msg.Reply <- err:
+				default:
+				}
+			}
+		case MsgLoadSnapshot:
+			err := w.LoadSnapshot(msg.Path)
+			if msg.Reply != nil {
+				select {
+				case msg.Reply <- err:
+				default:
+				}
 			}
 		}
 
