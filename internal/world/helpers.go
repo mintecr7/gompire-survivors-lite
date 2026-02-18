@@ -1,6 +1,10 @@
 package world
 
-import "math"
+import (
+	"math"
+
+	"horde-lab/internal/jobs"
+)
 
 var base float32 = float32(0.75)
 
@@ -125,6 +129,7 @@ func (w *World) updateEnemies(dt float32, intents map[int]enemyMoveIntent) {
 		if in, has := intents[e.ID]; has {
 			dir = in.Dir
 			speedScale = clamp(in.SpeedScale, 0.2, 1.5)
+			dir = resolveIntentDirection(e.ID, p.Sub(e.Pos), in, dir)
 			ok = true
 		}
 		if !ok {
@@ -143,6 +148,67 @@ func (w *World) updateEnemies(dt float32, intents map[int]enemyMoveIntent) {
 		// Clamp
 		e.Pos.X = clamp(e.Pos.X, 0, w.W)
 		e.Pos.Y = clamp(e.Pos.Y, 0, w.H)
+	}
+}
+
+func resolveIntentDirection(enemyID int, toPlayer Vec2, in enemyMoveIntent, baseDir Vec2) Vec2 {
+	dir := baseDir
+	dist := toPlayer.Len()
+	if dist <= 0 {
+		return dir
+	}
+
+	toPlayer = toPlayer.Mul(1 / dist)
+	preferred := in.PreferredRange
+	if preferred <= 0 {
+		preferred = dist
+	}
+
+	// Keep intent motion around a target range so modes remain readable in-game.
+	rangeErr := clamp((dist-preferred)/maxf(preferred, 1), -1, 1)
+	rangeGain := modeRangeGain(in.Mode)
+	dir = dir.Add(toPlayer.Mul(rangeErr * rangeGain))
+
+	strafeGain := modeStrafeGain(in.Mode)
+	if strafeGain > 0 {
+		tangent := Vec2{X: -toPlayer.Y, Y: toPlayer.X}
+		if enemyID%2 != 0 {
+			tangent = Vec2{X: toPlayer.Y, Y: -toPlayer.X}
+		}
+		dir = dir.Add(tangent.Mul(strafeGain))
+	}
+
+	if dir.X == 0 && dir.Y == 0 {
+		return toPlayer
+	}
+	return dir.Norm()
+}
+
+func modeRangeGain(mode jobs.IntentMode) float32 {
+	switch mode {
+	case jobs.IntentModeKite:
+		return 1.05
+	case jobs.IntentModeHold:
+		return 0.85
+	case jobs.IntentModeStrafe:
+		return 0.55
+	case jobs.IntentModePressure:
+		return 0.30
+	default:
+		return 0.45
+	}
+}
+
+func modeStrafeGain(mode jobs.IntentMode) float32 {
+	switch mode {
+	case jobs.IntentModeStrafe:
+		return 0.35
+	case jobs.IntentModeKite:
+		return 0.20
+	case jobs.IntentModeHold:
+		return 0.10
+	default:
+		return 0
 	}
 }
 
