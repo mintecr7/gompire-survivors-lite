@@ -38,7 +38,7 @@ func (w *World) spawnEnemyNearPlayer() {
 
 	spawnRadius := cfg.SpawnRadius
 	// spawn position in a ring around player
-	ang := w.rng.Float32() * 2 * math.Pi
+	ang := w.randFloat32() * 2 * math.Pi
 	off := Vec2{
 		X: float32(math.Cos(float64(ang))) * spawnRadius,
 		Y: float32(math.Sin(float64(ang))) * spawnRadius,
@@ -284,7 +284,7 @@ func (w *World) updateContactDamage(dt float32) {
 			dir := w.Player.Pos.Sub(e.Pos).Norm()
 			if dir.X == 0 && dir.Y == 0 {
 				// rare overlap: pick a deterministic-ish random direction
-				ang := w.rng.Float32() * 2 * math.Pi
+				ang := w.randFloat32() * 2 * math.Pi
 				dir = Vec2{
 					X: float32(math.Cos(float64(ang))),
 					Y: float32(math.Sin(float64(ang))),

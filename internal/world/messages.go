@@ -17,3 +17,17 @@ func (MsgRestart) isMsg() {}
 type MsgTogglePause struct{}
 
 func (MsgTogglePause) isMsg() {}
+
+type MsgSaveSnapshot struct {
+	Path  string
+	Reply chan<- error
+}
+
+func (MsgSaveSnapshot) isMsg() {}
+
+type MsgLoadSnapshot struct {
+	Path  string
+	Reply chan<- error
+}
+
+func (MsgLoadSnapshot) isMsg() {}

@@ -29,6 +29,8 @@ type World struct {
 	spawnTimer float32
 	spawnEvery float32
 	rng        *rand.Rand
+	rngSeed    int64
+	rngCalls   uint64
 
 	// attack visualization
 	LastAttackPos Vec2
