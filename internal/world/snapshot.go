@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+
+	"horde-lab/internal/jobs"
 )
 
 const SnapshotVersion = 1
@@ -36,7 +39,7 @@ type Snapshot struct {
 	ShakePhase float32 `json:"shake_phase"`
 	ShakeOff   Vec2    `json:"shake_off"`
 
-	NextEnemyID int   `json:"next_enemy_id"`
+	NextEnemyID int    `json:"next_enemy_id"`
 	AITick      uint64 `json:"ai_tick"`
 
 	RNGSeed  int64  `json:"rng_seed"`
@@ -158,6 +161,11 @@ func (w *World) SaveSnapshot(path string) error {
 	blob, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
+	}
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("ensure snapshot dir: %w", err)
+		}
 	}
 
 	tmpPath := path + ".tmp"

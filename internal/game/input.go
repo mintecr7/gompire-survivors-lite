@@ -24,3 +24,11 @@ func ReadRestart() bool {
 func ReadPaused() bool {
 	return inpututil.IsKeyJustPressed(ebiten.KeySpace)
 }
+
+func ReadSaveSnapshot() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF5)
+}
+
+func ReadLoadSnapshot() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF9)
+}

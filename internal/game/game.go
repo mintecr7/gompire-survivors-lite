@@ -5,6 +5,7 @@ import (
 	"horde-lab/internal/assets"
 	"horde-lab/internal/telemetry"
 	"horde-lab/internal/world"
+	"log"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -29,13 +30,18 @@ type Game struct {
 	// cumulative stat baselines (for delta events)
 	lastKills  int
 	lastDamage float32
+
+	snapshotPath string
+	saveReply    chan error
+	loadReply    chan error
 }
 
 func New() *Game {
 	g := &Game{
-		w:         world.NewWorld(2000, 2000), // world size
-		last:      time.Now(),
-		fixedStep: time.Second / 60,
+		w:            world.NewWorld(2000, 2000), // world size
+		last:         time.Now(),
+		fixedStep:    time.Second / 60,
+		snapshotPath: ".dist/snapshot.json",
 	}
 	g.loader = assets.NewLoader()
 	g.assets = NewAssetManager(g.loader)
@@ -74,6 +80,20 @@ func (g *Game) Update() error {
 	if ReadPaused() {
 		g.w.Enqueue(world.MsgTogglePause{})
 	}
+	if ReadSaveSnapshot() && g.saveReply == nil {
+		g.saveReply = make(chan error, 1)
+		g.w.Enqueue(world.MsgSaveSnapshot{
+			Path:  g.snapshotPath,
+			Reply: g.saveReply,
+		})
+	}
+	if ReadLoadSnapshot() && g.loadReply == nil {
+		g.loadReply = make(chan error, 1)
+		g.w.Enqueue(world.MsgLoadSnapshot{
+			Path:  g.snapshotPath,
+			Reply: g.loadReply,
+		})
+	}
 	// if in.Down || in.Left || in.Right || in.Up {
 
 	// 	fmt.Println("input values", in)
@@ -96,6 +116,7 @@ func (g *Game) Update() error {
 		g.accum -= g.fixedStep
 	}
 	g.emitWorldDeltas(now)
+	g.pollPersistenceReplies()
 
 	return nil
 }
@@ -164,5 +185,28 @@ func (g *Game) sendTelemetry(ev telemetry.Event) {
 	case g.telemetry.In <- ev:
 	default:
 		// Drop on backpressure to avoid stalling the fixed-step loop.
+	}
+}
+
+func (g *Game) pollPersistenceReplies() {
+	if g.saveReply != nil {
+		select {
+		case err := <-g.saveReply:
+			if err != nil {
+				log.Printf("save snapshot: %v", err)
+			}
+			g.saveReply = nil
+		default:
+		}
+	}
+	if g.loadReply != nil {
+		select {
+		case err := <-g.loadReply:
+			if err != nil {
+				log.Printf("load snapshot: %v", err)
+			}
+			g.loadReply = nil
+		default:
+		}
 	}
 }

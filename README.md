@@ -132,6 +132,8 @@ go run ./cmd/game
 - `Space`: pause/resume
 - `1` / `2`: choose level-up upgrade
 - `R` or `Enter`: restart (when paused or game over)
+- `F5`: save snapshot (`.dist/snapshot.json`)
+- `F9`: load snapshot (`.dist/snapshot.json`)
 
 ### Test
 
