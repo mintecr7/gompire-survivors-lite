@@ -109,6 +109,7 @@ type Player struct {
 
 	// knockback
 	KnockVel Vec2
+	Moving   bool
 }
 
 type Enemy struct {

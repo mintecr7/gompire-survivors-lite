@@ -85,6 +85,13 @@ func New() *Game {
 
 	// schedule loads early
 	g.assets.Request("player", "player.webp")
+	g.requestCharacterAssets(g.profile.Character)
+	g.assets.Request("ui_menu_background", "internal/assets/ui assets/menu_background.png")
+	g.assets.Request("ui_panel", "internal/assets/ui assets/panel.png")
+	g.assets.Request("ui_button_normal", "internal/assets/ui assets/button_normal.png")
+	g.assets.Request("ui_button_hover", "internal/assets/ui assets/button_hover.png")
+	g.assets.Request("ui_button_selected", "internal/assets/ui assets/button_selected.png")
+	g.assets.Request("ui_cursor", "internal/assets/ui assets/cursor.png")
 	return g
 }
 
@@ -225,11 +232,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	status := fmt.Sprintf(
 		"Player: %s  Character: %s  Style: %s\nBest Score: %s\nF1: cycle character  F2: cycle style  F7: stop+save  F8: load save  C: continue paused",
 		g.profile.Name,
-		g.profile.Character,
+		characterDisplayName(g.profile.Character),
 		g.profile.Customization,
 		best,
 	)
-	ebitenutil.DebugPrintAt(screen, status, 8, screen.Bounds().Dy()-40)
+	ebitenutil.DebugPrintAt(screen, status, 8, screen.Bounds().Dy()-60)
 }
 
 func (g *Game) Layout(outsideW, outsideH int) (int, int) {
@@ -387,6 +394,7 @@ func (g *Game) loadSavedGame() error {
 		return err
 	}
 	g.profile = sg.Profile
+	g.requestCharacterAssets(g.profile.Character)
 	g.gameOverSaved = g.w.GameOver
 	g.resetReplayRecording()
 	return nil
@@ -398,6 +406,7 @@ func (g *Game) cycleCharacter() {
 		idx = 0
 	}
 	g.profile.Character = characterChoices[(idx+1)%len(characterChoices)]
+	g.requestCharacterAssets(g.profile.Character)
 	if err := saveProfile(g.profilePath, g.profile); err != nil {
 		log.Printf("save profile: %v", err)
 	}
@@ -427,7 +436,7 @@ func (g *Game) captureHighscoreOnGameOver() {
 	entry := HighscoreEntry{
 		At:            time.Now(),
 		Name:          g.profile.Name,
-		Character:     g.profile.Character,
+		Character:     characterDisplayName(g.profile.Character),
 		Customization: g.profile.Customization,
 		Kills:         s.Stats.EnemiesKilled,
 		Level:         s.Player.Level,
@@ -443,4 +452,12 @@ func (g *Game) captureHighscoreOnGameOver() {
 		log.Printf("save highscores: %v", err)
 	}
 	g.gameOverSaved = true
+}
+
+func (g *Game) requestCharacterAssets(characterID string) {
+	if characterID == "" {
+		return
+	}
+	g.assets.Request("player_top", fmt.Sprintf("internal/assets/characters/top_down/%s_top_down.png", characterID))
+	g.assets.Request("player_walk", fmt.Sprintf("internal/assets/characters/walk_spirte/%s_walk_spirte.png", characterID))
 }
