@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "at": "2026-03-02T19:48:34.498336+09:00",
+      "name": "Hunter",
+      "character": "Mina Kang",
+      "customization": "Crimson",
+      "kills": 23,
+      "level": 1,
+      "time_survived": 29.983047,
+      "score": 2649
+    },
+    {
+      "at": "2026-03-02T19:47:53.381908+09:00",
+      "name": "Hunter",
+      "character": "Mina Kang",
+      "customization": "Crimson",
+      "kills": 20,
+      "level": 2,
+      "time_survived": 20.766521,
+      "score": 2307
+    }
+  ]
+}

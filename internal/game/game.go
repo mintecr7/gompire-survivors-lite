@@ -86,6 +86,12 @@ func New() *Game {
 	// schedule loads early
 	g.assets.Request("player", "player.webp")
 	g.requestCharacterAssets(g.profile.Character)
+	g.assets.Request("ui_menu_background", "internal/assets/ui assets/menu_background.png")
+	g.assets.Request("ui_panel", "internal/assets/ui assets/panel.png")
+	g.assets.Request("ui_button_normal", "internal/assets/ui assets/button_normal.png")
+	g.assets.Request("ui_button_hover", "internal/assets/ui assets/button_hover.png")
+	g.assets.Request("ui_button_selected", "internal/assets/ui assets/button_selected.png")
+	g.assets.Request("ui_cursor", "internal/assets/ui assets/cursor.png")
 	return g
 }
 

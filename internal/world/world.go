@@ -5,10 +5,11 @@ import (
 	"image/color"
 	"math/rand"
 
+	"horde-lab/internal/jobs"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"horde-lab/internal/jobs"
 
 	"horde-lab/internal/shared/input"
 )
@@ -457,8 +458,8 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(-float64(iw)/2, -float64(ih)/2)
 			op.GeoM.Scale(
-				float64((w.Player.R*2)/float32(iw)),
-				float64((w.Player.R*2)/float32(ih)),
+				float64((w.Player.R*3)/float32(iw)),
+				float64((w.Player.R*3)/float32(ih)),
 			)
 			op.GeoM.Translate(float64(px), float64(py))
 
@@ -500,58 +501,117 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 
 	// Game over overlay
 	if w.GameOver {
-		vector.FillRect(
-			screen,
-			0, 0,
-			float32(sw), float32(sh),
-			color.RGBA{0, 0, 0, 180},
-			false,
-		)
-		ebitenutil.DebugPrintAt(screen, "GAME OVER", 8, 90)
-		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 110)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time Survived: %.1fs", w.TimeSurvived), 8, 130)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level Reached: %d", w.Player.Level), 8, 150)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kills: %d", w.Stats.EnemiesKilled), 8, 170)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies Spawned: %d", w.Stats.EnemiesSpawned), 8, 190)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), 8, 210)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), 8, 230)
+		px, py, pw, ph := drawModalPanel(screen, assets, float32(sw), float32(sh), 0.62, 0.46)
+		x := int(px + 24)
+		y := int(py + 22)
+		ebitenutil.DebugPrintAt(screen, "GAME OVER", x, y)
+		ebitenutil.DebugPrintAt(screen, "Press R to restart", x, y+22)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Time Survived: %.1fs", w.TimeSurvived), x, y+50)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Level Reached: %d", w.Player.Level), x, y+72)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kills: %d", w.Stats.EnemiesKilled), x, y+94)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies Spawned: %d", w.Stats.EnemiesSpawned), x, y+116)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Damage Taken: %.0f", w.Stats.DamageTaken), x, y+138)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP Collected: %.0f", w.Stats.XPCollected), x, y+160)
+		_ = pw
+		_ = ph
 
 		return
 	}
 
 	// Upgrade menu overlay
 	if w.Upgrade.Active {
-
-		vector.FillRect(
-			screen,
-			0, 0,
-			float32(sw), float32(sh),
-			color.RGBA{0, 0, 0, 180},
-			false,
-		)
+		px, py, pw, ph := drawModalPanel(screen, assets, float32(sw), float32(sh), 0.60, 0.42)
+		drawUpgradeChoiceButtons(screen, assets, w.Upgrade.Options[0].Title, w.Upgrade.Options[1].Title)
 
 		// menu text
-		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade: ", 12, 120)
+		x := int(px + 24)
+		y := int(py + 22)
+		ebitenutil.DebugPrintAt(screen, "LEVEL UP! Choose an upgrade:", x, y)
 		o0 := w.Upgrade.Options[0]
 		o1 := w.Upgrade.Options[1]
-		ebitenutil.DebugPrintAt(screen, o0.Title, 12, 138)
-		ebitenutil.DebugPrintAt(screen, "    "+o0.Desc, 12, 152)
-		ebitenutil.DebugPrintAt(screen, o1.Title, 12, 174)
-		ebitenutil.DebugPrintAt(screen, "    "+o1.Desc, 12, 190)
-		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", 12, 212)
+		ebitenutil.DebugPrintAt(screen, o0.Title, x, y+22)
+		ebitenutil.DebugPrintAt(screen, "  "+o0.Desc, x, y+42)
+		ebitenutil.DebugPrintAt(screen, o1.Title, x, y+64)
+		ebitenutil.DebugPrintAt(screen, "  "+o1.Desc, x, y+84)
+		ebitenutil.DebugPrintAt(screen, "Press 1 or 2", x, y+106)
+		_ = pw
+		_ = ph
 	}
 
 	// Pause overlay
 	if w.Paused {
-		vector.FillRect(
-			screen,
-			0, 0,
-			float32(sw), float32(sh),
-			color.RGBA{0, 0, 0, 140},
-			false,
-		)
-		ebitenutil.DebugPrintAt(screen, "PAUSED", 8, 9)
-		ebitenutil.DebugPrintAt(screen, "Press the space bar to resume", 8, 110)
-		ebitenutil.DebugPrintAt(screen, "Press R to restart", 8, 130)
+		px, py, _, _ := drawModalPanel(screen, assets, float32(sw), float32(sh), 0.58, 0.36)
+		drawPauseButtons(screen, assets)
+		x := int(px + 24)
+		y := int(py + 22)
+		ebitenutil.DebugPrintAt(screen, "PAUSED", x, y)
+		ebitenutil.DebugPrintAt(screen, "Space/C: Continue", x, y+24)
+		ebitenutil.DebugPrintAt(screen, "R: Restart", x, y+44)
 	}
+}
+
+func drawImageFitted(dst *ebiten.Image, img *ebiten.Image, x, y, w, h float32) {
+	b := img.Bounds()
+	iw := float32(b.Dx())
+	ih := float32(b.Dy())
+	if iw <= 0 || ih <= 0 {
+		return
+	}
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(float64(w/iw), float64(h/ih))
+	op.GeoM.Translate(float64(x), float64(y))
+	dst.DrawImage(img, op)
+}
+
+func drawModalPanel(screen *ebiten.Image, assets AssetProvider, sw, sh, wr, hr float32) (x, y, w, h float32) {
+	vector.FillRect(screen, 0, 0, sw, sh, color.RGBA{0, 0, 0, 160}, false)
+	pw := sw * wr
+	ph := sh * hr
+	px := (sw - pw) * 0.5
+	py := (sh - ph) * 0.5
+	if panel := assets.Get("ui_panel"); panel != nil {
+		drawImageFitted(screen, panel, px, py, pw, ph)
+		return px, py, pw, ph
+	}
+	vector.FillRect(screen, px, py, pw, ph, color.RGBA{28, 28, 32, 230}, false)
+	return px, py, pw, ph
+}
+
+func drawUpgradeChoiceButtons(screen *ebiten.Image, assets AssetProvider, left, right string) {
+	sw := float32(screen.Bounds().Dx())
+	sh := float32(screen.Bounds().Dy())
+	bw := sw * 0.20
+	bh := sh * 0.065
+	y := sh * 0.60
+	x1 := sw*0.32 - bw*0.5
+	x2 := sw*0.68 - bw*0.5
+	drawButton(screen, assets, x1, y, bw, bh, "ui_button_selected")
+	drawButton(screen, assets, x2, y, bw, bh, "ui_button_hover")
+	if c := assets.Get("ui_cursor"); c != nil {
+		drawImageFitted(screen, c, x1-18, y+bh*0.5-12, 18, 24)
+	}
+	ebitenutil.DebugPrintAt(screen, left, int(x1)+12, int(y)+12)
+	ebitenutil.DebugPrintAt(screen, right, int(x2)+12, int(y)+12)
+}
+
+func drawPauseButtons(screen *ebiten.Image, assets AssetProvider) {
+	sw := float32(screen.Bounds().Dx())
+	sh := float32(screen.Bounds().Dy())
+	bw := sw * 0.22
+	bh := sh * 0.065
+	y1 := sh * 0.58
+	y2 := y1 + bh + 10
+	x := (sw - bw) * 0.5
+	drawButton(screen, assets, x, y1, bw, bh, "ui_button_selected")
+	drawButton(screen, assets, x, y2, bw, bh, "ui_button_normal")
+	ebitenutil.DebugPrintAt(screen, "C / Space: Continue", int(x)+14, int(y1)+12)
+	ebitenutil.DebugPrintAt(screen, "R: Restart", int(x)+14, int(y2)+12)
+}
+
+func drawButton(screen *ebiten.Image, assets AssetProvider, x, y, w, h float32, key string) {
+	if b := assets.Get(key); b != nil {
+		drawImageFitted(screen, b, x, y, w, h)
+		return
+	}
+	vector.FillRect(screen, x, y, w, h, color.RGBA{54, 54, 60, 220}, false)
 }
