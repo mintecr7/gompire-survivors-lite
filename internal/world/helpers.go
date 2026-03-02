@@ -217,7 +217,6 @@ func modeStrafeGain(mode jobs.IntentMode) float32 {
 // ============================================================================
 
 func (w *World) updateCombat(dt float32) {
-
 	// cooldown timer
 	if w.Player.AttackTimer > 0 {
 		w.Player.AttackTimer -= dt
@@ -226,34 +225,54 @@ func (w *World) updateCombat(dt float32) {
 		}
 	}
 
-	// ready to attack: find nearest enemy in range
-	idx := w.nearestEnemyInRange(w.Player.Pos, w.Cfg.PlayerAttackRange)
+	wd := weaponDef(w.Player.Weapon)
+	attackRange := w.Player.AttackRange * wd.RangeMul
+	damage := w.Player.Damage * wd.DamageMul
+	nextCooldown := maxf(0.08, w.Player.AttackCooldown*wd.CooldownMul)
+	fired := false
 
-	if idx < 0 {
-		return
+	switch wd.AttackStyle {
+	case AttackPierce:
+		idxs := w.nearestEnemiesInRange(w.Player.Pos, attackRange, 2)
+		if len(idxs) == 0 {
+			return
+		}
+		fired = true
+		w.LastAttackPos = w.Enemies[idxs[0]].Pos
+		sortIdxDesc(idxs)
+		for _, idx := range idxs {
+			w.damageEnemyAt(idx, damage)
+		}
+	case AttackRadial:
+		rad := wd.AttackRadius
+		if rad <= 0 {
+			rad = attackRange
+		}
+		idxs := w.nearestEnemiesInRange(w.Player.Pos, rad, 64)
+		if len(idxs) == 0 {
+			return
+		}
+		fired = true
+		w.LastAttackPos = w.Player.Pos
+		w.LastAttackRadius = rad
+		sortIdxDesc(idxs)
+		for _, idx := range idxs {
+			w.damageEnemyAt(idx, damage)
+		}
+	default:
+		idx := w.nearestEnemyInRange(w.Player.Pos, attackRange)
+		if idx < 0 {
+			return
+		}
+		fired = true
+		w.LastAttackPos = w.Enemies[idx].Pos
+		w.damageEnemyAt(idx, damage)
 	}
-
-	// perform attack
-	w.Player.AttackTimer = w.Cfg.PlayerAttackCooldown
-
-	// deal Damage
-	e := &w.Enemies[idx]
-	e.HP -= w.Cfg.PlayerDamage
-	e.HitT = 1.10 // flash duration
-
-	w.LastAttackPos = e.Pos
-	w.LastAttackT = 0.08
-
-	if e.HP <= 0 {
-		deathPos := e.Pos
-		xp := e.XPValue
-		w.removeEnemyAt(idx)
-
-		w.spawnXPOrb(deathPos, xp)
-
-		w.Stats.EnemiesKilled++
+	if fired {
+		w.Player.AttackTimer = nextCooldown
+		w.LastAttackT = 0.08
+		w.LastAttackWeapon = w.Player.Weapon
 	}
-
 }
 
 func (w *World) updateContactDamage(dt float32) {
@@ -403,6 +422,22 @@ func (w *World) updateXPOrbs(dt float32) {
 	}
 }
 
+func (w *World) updateWeaponDrops() {
+	p := w.Player.Pos
+	pickupR := w.Player.R + 14
+
+	for i := 0; i < len(w.Drops); {
+		d := w.Drops[i]
+		rr := pickupR + d.R
+		if dist2(p, d.Pos) <= rr*rr {
+			w.Player.Weapon = d.Kind
+			w.removeDropAt(i)
+			continue
+		}
+		i++
+	}
+}
+
 func (w *World) updateLevelUp() {
 	// If menu is already active, don't process more levels rights now.
 	if w.Upgrade.Active {
@@ -491,6 +526,101 @@ func (w *World) removeOrbAt(i int) {
 		w.Orbs[i] = w.Orbs[last]
 	}
 	w.Orbs = w.Orbs[:last]
+}
+
+func (w *World) removeDropAt(i int) {
+	last := len(w.Drops) - 1
+	if i != last {
+		w.Drops[i] = w.Drops[last]
+	}
+	w.Drops = w.Drops[:last]
+}
+
+func (w *World) maybeSpawnWeaponDrop(pos Vec2, kind EnemyKind) {
+	if w.randFloat32() > weaponDropChance(kind) {
+		return
+	}
+
+	weapon := w.randomWeaponKind()
+	def := weaponDef(weapon)
+	w.Drops = append(w.Drops, WeaponDrop{
+		Pos:  pos,
+		R:    def.DropRadius,
+		Kind: weapon,
+	})
+}
+
+func (w *World) nearestEnemiesInRange(p Vec2, rng float32, limit int) []int {
+	if len(w.Enemies) == 0 || limit <= 0 {
+		return nil
+	}
+
+	type cand struct {
+		idx int
+		d2  float32
+	}
+	r2 := rng * rng
+	cands := make([]cand, 0, len(w.Enemies))
+	for i := range w.Enemies {
+		d := w.Enemies[i].Pos.Sub(p)
+		d2 := d.X*d.X + d.Y*d.Y
+		if d2 <= r2 {
+			cands = append(cands, cand{idx: i, d2: d2})
+		}
+	}
+	if len(cands) == 0 {
+		return nil
+	}
+
+	for i := 0; i < len(cands)-1; i++ {
+		best := i
+		for j := i + 1; j < len(cands); j++ {
+			if cands[j].d2 < cands[best].d2 {
+				best = j
+			}
+		}
+		cands[i], cands[best] = cands[best], cands[i]
+	}
+
+	if len(cands) > limit {
+		cands = cands[:limit]
+	}
+
+	out := make([]int, len(cands))
+	for i := range cands {
+		out[i] = cands[i].idx
+	}
+	return out
+}
+
+func (w *World) damageEnemyAt(idx int, dmg float32) {
+	if idx < 0 || idx >= len(w.Enemies) {
+		return
+	}
+	e := &w.Enemies[idx]
+	e.HP -= dmg
+	e.HitT = 1.10 // flash duration
+	if e.HP > 0 {
+		return
+	}
+
+	deathPos := e.Pos
+	xp := e.XPValue
+	kind := e.Kind
+	w.removeEnemyAt(idx)
+	w.spawnXPOrb(deathPos, xp)
+	w.maybeSpawnWeaponDrop(deathPos, kind)
+	w.Stats.EnemiesKilled++
+}
+
+func sortIdxDesc(idxs []int) {
+	for i := 0; i < len(idxs)-1; i++ {
+		for j := i + 1; j < len(idxs); j++ {
+			if idxs[j] > idxs[i] {
+				idxs[i], idxs[j] = idxs[j], idxs[i]
+			}
+		}
+	}
 }
 
 func dist2(a, b Vec2) float32 {

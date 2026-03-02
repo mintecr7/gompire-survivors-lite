@@ -19,15 +19,18 @@ type Snapshot struct {
 
 	Cfg Config `json:"cfg"`
 
-	Player  Player  `json:"player"`
-	Enemies []Enemy `json:"enemies"`
-	Orbs    []XPOrb `json:"orbs"`
+	Player  Player       `json:"player"`
+	Enemies []Enemy      `json:"enemies"`
+	Orbs    []XPOrb      `json:"orbs"`
+	Drops   []WeaponDrop `json:"drops"`
 
 	SpawnTimer float32 `json:"spawn_timer"`
 	SpawnEvery float32 `json:"spawn_every"`
 
-	LastAttackPos Vec2    `json:"last_attack_pos"`
-	LastAttackT   float32 `json:"last_attack_t"`
+	LastAttackPos    Vec2       `json:"last_attack_pos"`
+	LastAttackT      float32    `json:"last_attack_t"`
+	LastAttackRadius float32    `json:"last_attack_radius"`
+	LastAttackWeapon WeaponKind `json:"last_attack_weapon"`
 
 	TimeSurvived float32     `json:"time_survived"`
 	GameOver     bool        `json:"game_over"`
@@ -52,6 +55,8 @@ func (w *World) BuildSnapshot() Snapshot {
 
 	orbs := make([]XPOrb, len(w.Orbs))
 	copy(orbs, w.Orbs)
+	drops := make([]WeaponDrop, len(w.Drops))
+	copy(drops, w.Drops)
 
 	return Snapshot{
 		Version: SnapshotVersion,
@@ -62,12 +67,15 @@ func (w *World) BuildSnapshot() Snapshot {
 		Player:  w.Player,
 		Enemies: enemies,
 		Orbs:    orbs,
+		Drops:   drops,
 
 		SpawnTimer: w.spawnTimer,
 		SpawnEvery: w.spawnEvery,
 
-		LastAttackPos: w.LastAttackPos,
-		LastAttackT:   w.LastAttackT,
+		LastAttackPos:    w.LastAttackPos,
+		LastAttackT:      w.LastAttackT,
+		LastAttackRadius: w.LastAttackRadius,
+		LastAttackWeapon: w.LastAttackWeapon,
 
 		TimeSurvived: w.TimeSurvived,
 		GameOver:     w.GameOver,
@@ -104,12 +112,16 @@ func (w *World) ApplySnapshot(s Snapshot) error {
 	copy(w.Enemies, s.Enemies)
 	w.Orbs = make([]XPOrb, len(s.Orbs))
 	copy(w.Orbs, s.Orbs)
+	w.Drops = make([]WeaponDrop, len(s.Drops))
+	copy(w.Drops, s.Drops)
 
 	w.spawnTimer = s.SpawnTimer
 	w.spawnEvery = s.SpawnEvery
 
 	w.LastAttackPos = s.LastAttackPos
 	w.LastAttackT = s.LastAttackT
+	w.LastAttackRadius = s.LastAttackRadius
+	w.LastAttackWeapon = s.LastAttackWeapon
 
 	w.TimeSurvived = s.TimeSurvived
 	w.GameOver = s.GameOver
