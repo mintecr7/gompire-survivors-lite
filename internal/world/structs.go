@@ -19,6 +19,14 @@ type WeaponDrop struct {
 	Kind WeaponKind
 }
 
+type EnemyProjectile struct {
+	Pos    Vec2
+	Vel    Vec2
+	R      float32
+	Damage float32
+	Life   float32
+}
+
 type MsgInput struct{ Input input.State }
 
 type World struct {
@@ -29,6 +37,7 @@ type World struct {
 	Cfg     Config
 	Orbs    []XPOrb
 	Drops   []WeaponDrop
+	Shots   []EnemyProjectile
 	Player  Player
 	Enemies []Enemy
 
@@ -119,6 +128,9 @@ type Enemy struct {
 	// archetype
 	Kind    EnemyKind
 	XPValue float32
+
+	// conditional ranged attack (used by runners when player has Nova)
+	ShotTimer float32
 }
 
 type Stats struct {
