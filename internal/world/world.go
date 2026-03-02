@@ -132,6 +132,7 @@ func (w *World) Tick(dt float32) {
 
 	// stop simulating during game over or menu
 	if w.GameOver || w.Upgrade.Active || w.Paused {
+		w.Player.Moving = false
 		return
 	}
 
@@ -179,9 +180,12 @@ func (w *World) applyInput(dt float32, in input.State) {
 	}
 
 	if dir.X != 0 || dir.Y != 0 {
+		w.Player.Moving = true
 		dir = dir.Norm()
 		w.Player.Pos.X += dir.X * w.Player.Speed * dt
 		w.Player.Pos.Y += dir.Y * w.Player.Speed * dt
+	} else {
+		w.Player.Moving = false
 	}
 
 	// clamp to bounds
@@ -436,7 +440,16 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 	px := camX + w.Player.Pos.X
 	py := camY + w.Player.Pos.Y
 
-	if playerImg := assets.Get("player"); playerImg != nil {
+	playerImg := assets.Get("player_top")
+	if w.Player.Moving {
+		if walk := assets.Get("player_walk"); walk != nil {
+			playerImg = walk
+		}
+	}
+	if playerImg == nil {
+		playerImg = assets.Get("player")
+	}
+	if playerImg != nil {
 		b := playerImg.Bounds()
 		iw, ih := b.Dx(), b.Dy()
 

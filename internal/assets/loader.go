@@ -143,5 +143,5 @@ func embeddedPathCandidates(name string) []string {
 	return uniq
 }
 
-//go:embed *.webp
+//go:embed *.webp characters/*.png characters/top_down/*.png characters/walk_spirte/*.png
 var embeddedAssets embed.FS

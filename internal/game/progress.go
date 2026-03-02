@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"horde-lab/internal/world"
@@ -18,10 +19,12 @@ const (
 )
 
 var characterChoices = []string{
-	"Hunter",
-	"Duelist",
-	"Alchemist",
-	"Warden",
+	"daniel_kim",
+	"hana_choi",
+	"jayden_park",
+	"mina_kang",
+	"seojun_lee",
+	"yuri_han",
 }
 
 var customizationChoices = []string{
@@ -68,6 +71,20 @@ func defaultProfile() PlayerProfile {
 		Character:     characterChoices[0],
 		Customization: customizationChoices[0],
 	}
+}
+
+func characterDisplayName(id string) string {
+	if id == "" {
+		return "Unknown"
+	}
+	parts := strings.Split(id, "_")
+	for i := range parts {
+		if parts[i] == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
+	}
+	return strings.Join(parts, " ")
 }
 
 func ensureParentDir(path string) error {
