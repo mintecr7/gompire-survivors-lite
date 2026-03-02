@@ -53,6 +53,7 @@ func NewWorld(w, h float32) *World {
 		Enemies:    make([]Enemy, 0, 256),
 		Orbs:       make([]XPOrb, 0, 256),
 		Drops:      make([]WeaponDrop, 0, 32),
+		Shots:      make([]EnemyProjectile, 0, 128),
 		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng:      rand.New(rand.NewSource(seed)),
@@ -237,6 +238,14 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 		}
 	}
 
+	// enemy projectiles
+	for _, s := range w.Shots {
+		sx := camX + s.Pos.X
+		sy := camY + s.Pos.Y
+		vector.FillCircle(screen, sx, sy, s.R, color.RGBA{255, 95, 95, 230}, false)
+		vector.StrokeCircle(screen, sx, sy, s.R+1, 1, color.RGBA{255, 200, 200, 255}, false)
+	}
+
 	// Enemy rendering with visual variety
 	for _, e := range w.Enemies {
 		ex := camX + e.Pos.X
@@ -369,7 +378,8 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 		}
 
 		alpha := uint8(255 * t)
-		if w.LastAttackWeapon == WeaponNova {
+		switch w.LastAttackWeapon {
+		case WeaponNova:
 			vector.StrokeCircle(
 				screen,
 				camX+w.Player.Pos.X,
@@ -379,7 +389,24 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 				color.RGBA{255, 130, 230, alpha},
 				false,
 			)
-		} else {
+		case WeaponSpear:
+			vector.StrokeLine(
+				screen,
+				camX+w.Player.Pos.X,
+				camY+w.Player.Pos.Y,
+				camX+w.LastAttackPos.X,
+				camY+w.LastAttackPos.Y,
+				3,
+				color.RGBA{120, 230, 255, alpha},
+				false,
+			)
+			vector.FillCircle(screen, camX+w.LastAttackPos.X, camY+w.LastAttackPos.Y, 3, color.RGBA{200, 245, 255, alpha}, false)
+		case WeaponFang:
+			midX := (w.Player.Pos.X + w.LastAttackPos.X) * 0.5
+			midY := (w.Player.Pos.Y + w.LastAttackPos.Y) * 0.5
+			vector.StrokeLine(screen, camX+w.Player.Pos.X, camY+w.Player.Pos.Y, camX+midX, camY+midY, 2, color.RGBA{255, 110, 110, alpha}, false)
+			vector.StrokeLine(screen, camX+midX, camY+midY, camX+w.LastAttackPos.X, camY+w.LastAttackPos.Y, 2, color.RGBA{255, 170, 170, alpha}, false)
+		default: // whip
 			vector.StrokeLine(
 				screen,
 				camX+w.Player.Pos.X,
@@ -388,6 +415,16 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 				camY+w.LastAttackPos.Y,
 				2, // line width
 				color.RGBA{255, 255, 100, alpha},
+				false,
+			)
+			vector.StrokeLine(
+				screen,
+				camX+w.Player.Pos.X,
+				camY+w.Player.Pos.Y,
+				camX+(w.Player.Pos.X*0.35+w.LastAttackPos.X*0.65),
+				camY+(w.Player.Pos.Y*0.35+w.LastAttackPos.Y*0.65),
+				1,
+				color.RGBA{255, 220, 140, alpha},
 				false,
 			)
 		}
