@@ -328,6 +328,86 @@ func (w *World) updateContactDamage(dt float32) {
 
 }
 
+func (w *World) updateRunnerRangedShots(dt float32) {
+	const (
+		minRange  = float32(42)
+		maxRange  = float32(170)
+		shotSpeed = float32(360)
+		shotLife  = float32(1.05)
+		shotDmg   = float32(7)
+	)
+
+	hasNova := w.Player.Weapon == WeaponNova
+	p := w.Player.Pos
+	for i := range w.Enemies {
+		e := &w.Enemies[i]
+		if e.Kind != EnemyRunner {
+			continue
+		}
+		if e.ShotTimer > 0 {
+			e.ShotTimer -= dt
+			if e.ShotTimer < 0 {
+				e.ShotTimer = 0
+			}
+		}
+		if !hasNova || e.ShotTimer > 0 {
+			continue
+		}
+
+		toPlayer := p.Sub(e.Pos)
+		dist := toPlayer.Len()
+		if dist < minRange || dist > maxRange {
+			continue
+		}
+
+		dir := toPlayer.Norm()
+		if dir.X == 0 && dir.Y == 0 {
+			continue
+		}
+
+		w.Shots = append(w.Shots, EnemyProjectile{
+			Pos:    e.Pos,
+			Vel:    dir.Mul(shotSpeed),
+			R:      4,
+			Damage: shotDmg,
+			Life:   shotLife,
+		})
+		e.ShotTimer = 1.15
+	}
+}
+
+func (w *World) updateEnemyProjectiles(dt float32) {
+	p := w.Player.Pos
+	for i := 0; i < len(w.Shots); {
+		s := w.Shots[i]
+		s.Pos = s.Pos.Add(s.Vel.Mul(dt))
+		s.Life -= dt
+
+		if s.Life <= 0 || s.Pos.X < 0 || s.Pos.X > w.W || s.Pos.Y < 0 || s.Pos.Y > w.H {
+			w.removeShotAt(i)
+			continue
+		}
+
+		rr := w.Player.R + s.R
+		if dist2(p, s.Pos) <= rr*rr {
+			if w.Player.HurtTimer <= 0 {
+				w.Player.HP -= s.Damage
+				w.Stats.DamageTaken += s.Damage
+				w.Player.HurtTimer = w.Cfg.PlayerHurtCooldown
+				if w.Player.HP <= 0 {
+					w.Player.HP = 0
+					w.GameOver = true
+				}
+			}
+			w.removeShotAt(i)
+			continue
+		}
+
+		w.Shots[i] = s
+		i++
+	}
+}
+
 // ============================================================================
 // PLAYER MOVEMENT & PHYSICS
 // ============================================================================
@@ -534,6 +614,14 @@ func (w *World) removeDropAt(i int) {
 		w.Drops[i] = w.Drops[last]
 	}
 	w.Drops = w.Drops[:last]
+}
+
+func (w *World) removeShotAt(i int) {
+	last := len(w.Shots) - 1
+	if i != last {
+		w.Shots[i] = w.Shots[last]
+	}
+	w.Shots = w.Shots[:last]
 }
 
 func (w *World) maybeSpawnWeaponDrop(pos Vec2, kind EnemyKind) {
