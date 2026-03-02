@@ -330,11 +330,11 @@ func (w *World) updateContactDamage(dt float32) {
 
 func (w *World) updateRunnerRangedShots(dt float32) {
 	const (
-		minRange  = float32(42)
-		maxRange  = float32(170)
-		shotSpeed = float32(360)
-		shotLife  = float32(1.05)
-		shotDmg   = float32(7)
+		minRange  = float32(30)
+		maxRange  = float32(125)
+		shotSpeed = float32(320)
+		shotLife  = float32(0.95)
+		shotDmg   = float32(5)
 	)
 
 	hasNova := w.Player.Weapon == WeaponNova
@@ -372,7 +372,7 @@ func (w *World) updateRunnerRangedShots(dt float32) {
 			Damage: shotDmg,
 			Life:   shotLife,
 		})
-		e.ShotTimer = 1.15
+		e.ShotTimer = 1.45
 	}
 }
 
@@ -536,8 +536,8 @@ func (w *World) updateLevelUp() {
 		leveled = true
 
 		// v0.1 simple reward: small heal on level up
+		w.Player.MaxHP = minf(w.Cfg.PlayerMaxHPCap, w.Player.MaxHP+w.Cfg.PlayerLevelUpHeal)
 		w.Player.HP = minf(w.Player.MaxHP, w.Player.HP+w.Cfg.PlayerLevelUpHeal)
-		w.Player.MaxHP += w.Cfg.PlayerLevelUpHeal
 	}
 
 	if leveled {

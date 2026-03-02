@@ -2,13 +2,16 @@ package game
 
 import (
 	// "fmt"
+	"fmt"
 	"horde-lab/internal/assets"
 	"horde-lab/internal/telemetry"
 	"horde-lab/internal/world"
 	"log"
+	"slices"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
@@ -41,15 +44,39 @@ type Game struct {
 
 	replayMode     bool
 	replayFrameIdx int
+
+	profilePath   string
+	saveGamePath  string
+	highscorePath string
+	profile       PlayerProfile
+	highscores    HighscoreFile
+	gameOverSaved bool
 }
 
 func New() *Game {
 	g := &Game{
-		w:            world.NewWorld(2000, 2000), // world size
-		last:         time.Now(),
-		fixedStep:    time.Second / 60,
-		snapshotPath: ".dist/snapshot.json",
-		replayPath:   ".dist/replay.json",
+		w:             world.NewWorld(2000, 2000), // world size
+		last:          time.Now(),
+		fixedStep:     time.Second / 60,
+		snapshotPath:  ".dist/snapshot.json",
+		replayPath:    ".dist/replay.json",
+		profilePath:   ".dist/player_profile.json",
+		saveGamePath:  ".dist/savegame.json",
+		highscorePath: ".dist/highscores.json",
+	}
+
+	if p, err := loadProfile(g.profilePath); err == nil {
+		g.profile = p
+	} else {
+		g.profile = defaultProfile()
+		if err := saveProfile(g.profilePath, g.profile); err != nil {
+			log.Printf("init profile: %v", err)
+		}
+	}
+	if hs, err := loadHighscores(g.highscorePath); err == nil {
+		g.highscores = hs
+	} else {
+		g.highscores = HighscoreFile{Version: highscoreVersion, Entries: make([]HighscoreEntry, 0, 16)}
 	}
 	g.resetReplayRecording()
 	g.loader = assets.NewLoader()
@@ -105,10 +132,36 @@ func (g *Game) Update() error {
 			log.Printf("save replay: %v", err)
 		}
 	}
+	if ReadStopAndSaveGame() && !g.replayMode {
+		if err := g.saveCurrentGame(); err != nil {
+			log.Printf("save game: %v", err)
+		} else {
+			log.Printf("game saved to %s", g.saveGamePath)
+		}
+		if !g.w.Paused && !g.w.GameOver {
+			g.w.Enqueue(world.MsgTogglePause{})
+		}
+	}
+	if ReadLoadSavedGame() && !g.replayMode {
+		if err := g.loadSavedGame(); err != nil {
+			log.Printf("load game: %v", err)
+		} else {
+			log.Printf("loaded saved game from %s", g.saveGamePath)
+		}
+	}
 	if ReadStartReplay() && !g.replayMode {
 		if err := g.startReplayFromFile(); err != nil {
 			log.Printf("start replay: %v", err)
 		}
+	}
+	if ReadContinuePaused() && g.w.Paused && !g.w.GameOver {
+		g.w.Enqueue(world.MsgTogglePause{})
+	}
+	if ReadCycleCharacter() && !g.replayMode {
+		g.cycleCharacter()
+	}
+	if ReadCycleCustomization() && !g.replayMode {
+		g.cycleCustomization()
 	}
 	// if in.Down || in.Left || in.Right || in.Up {
 
@@ -156,6 +209,7 @@ func (g *Game) Update() error {
 		g.accum -= g.fixedStep
 	}
 	g.emitWorldDeltas(now)
+	g.captureHighscoreOnGameOver()
 	g.pollPersistenceReplies()
 
 	return nil
@@ -163,6 +217,19 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.w.Draw(screen, g.assets)
+	best := "-"
+	if len(g.highscores.Entries) > 0 {
+		top := g.highscores.Entries[0]
+		best = fmt.Sprintf("%d (%s)", top.Score, top.Name)
+	}
+	status := fmt.Sprintf(
+		"Player: %s  Character: %s  Style: %s\nBest Score: %s\nF1: cycle character  F2: cycle style  F7: stop+save  F8: load save  C: continue paused",
+		g.profile.Name,
+		g.profile.Character,
+		g.profile.Customization,
+		best,
+	)
+	ebitenutil.DebugPrintAt(screen, status, 8, screen.Bounds().Dy()-40)
 }
 
 func (g *Game) Layout(outsideW, outsideH int) (int, int) {
@@ -299,4 +366,81 @@ func (g *Game) startReplayFromFile() error {
 	g.replayFrameIdx = 0
 	g.replayTick = 0
 	return nil
+}
+
+func (g *Game) saveCurrentGame() error {
+	sg := SaveGame{
+		Version:  saveGameVersion,
+		SavedAt:  time.Now(),
+		Profile:  g.profile,
+		Snapshot: g.w.BuildSnapshot(),
+	}
+	return saveSaveGame(g.saveGamePath, sg)
+}
+
+func (g *Game) loadSavedGame() error {
+	sg, err := loadSaveGame(g.saveGamePath)
+	if err != nil {
+		return err
+	}
+	if err := g.w.ApplySnapshot(sg.Snapshot); err != nil {
+		return err
+	}
+	g.profile = sg.Profile
+	g.gameOverSaved = g.w.GameOver
+	g.resetReplayRecording()
+	return nil
+}
+
+func (g *Game) cycleCharacter() {
+	idx := slices.Index(characterChoices, g.profile.Character)
+	if idx < 0 {
+		idx = 0
+	}
+	g.profile.Character = characterChoices[(idx+1)%len(characterChoices)]
+	if err := saveProfile(g.profilePath, g.profile); err != nil {
+		log.Printf("save profile: %v", err)
+	}
+}
+
+func (g *Game) cycleCustomization() {
+	idx := slices.Index(customizationChoices, g.profile.Customization)
+	if idx < 0 {
+		idx = 0
+	}
+	g.profile.Customization = customizationChoices[(idx+1)%len(customizationChoices)]
+	if err := saveProfile(g.profilePath, g.profile); err != nil {
+		log.Printf("save profile: %v", err)
+	}
+}
+
+func (g *Game) captureHighscoreOnGameOver() {
+	if !g.w.GameOver {
+		g.gameOverSaved = false
+		return
+	}
+	if g.gameOverSaved {
+		return
+	}
+
+	s := g.w.BuildSnapshot()
+	entry := HighscoreEntry{
+		At:            time.Now(),
+		Name:          g.profile.Name,
+		Character:     g.profile.Character,
+		Customization: g.profile.Customization,
+		Kills:         s.Stats.EnemiesKilled,
+		Level:         s.Player.Level,
+		TimeSurvived:  s.TimeSurvived,
+		Score:         calcScore(s),
+	}
+	g.highscores.Entries = append(g.highscores.Entries, entry)
+	sortHighscores(g.highscores.Entries)
+	if len(g.highscores.Entries) > 20 {
+		g.highscores.Entries = g.highscores.Entries[:20]
+	}
+	if err := saveHighscores(g.highscorePath, g.highscores); err != nil {
+		log.Printf("save highscores: %v", err)
+	}
+	g.gameOverSaved = true
 }

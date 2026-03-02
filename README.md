@@ -136,6 +136,11 @@ go run ./cmd/game
 - `F9`: load snapshot (`.dist/snapshot.json`)
 - `F6`: save replay (`.dist/replay.json`)
 - `F10`: load + start replay (`.dist/replay.json`)
+- `F7`: stop and save game (`.dist/savegame.json`)
+- `F8`: load saved game (`.dist/savegame.json`)
+- `C`: continue paused game
+- `F1`: cycle character preset
+- `F2`: cycle customization preset
 
 ### Test
 
@@ -167,7 +172,7 @@ goroutines push inputs to the server's world loop.
 
 - **✅** **v0.1**: basic loop (move, spawn, hit, die, level up)
 - **✅** **v0.2**: async asset loader + telemetry goroutine
-- \***\*✅** v0.3\*\*: worker pool for AI intent/jobs
+- **✅** **v0.3**: worker pool for AI intent/jobs
 - **v0.4**: persistence + replay experiments
 - **v1.0**: "fun enough" release (balance + polish)
 

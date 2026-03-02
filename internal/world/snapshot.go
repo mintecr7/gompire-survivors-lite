@@ -112,6 +112,12 @@ func (w *World) ApplySnapshot(s Snapshot) error {
 	w.Cfg = s.Cfg
 
 	w.Player = s.Player
+	if w.Cfg.PlayerMaxHPCap > 0 && w.Player.MaxHP > w.Cfg.PlayerMaxHPCap {
+		w.Player.MaxHP = w.Cfg.PlayerMaxHPCap
+	}
+	if w.Player.HP > w.Player.MaxHP {
+		w.Player.HP = w.Player.MaxHP
+	}
 	w.Enemies = make([]Enemy, len(s.Enemies))
 	copy(w.Enemies, s.Enemies)
 	w.Orbs = make([]XPOrb, len(s.Orbs))
