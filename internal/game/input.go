@@ -40,3 +40,23 @@ func ReadSaveReplay() bool {
 func ReadStartReplay() bool {
 	return inpututil.IsKeyJustPressed(ebiten.KeyF10)
 }
+
+func ReadStopAndSaveGame() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF7)
+}
+
+func ReadLoadSavedGame() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF8)
+}
+
+func ReadContinuePaused() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyC)
+}
+
+func ReadCycleCharacter() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF1)
+}
+
+func ReadCycleCustomization() bool {
+	return inpututil.IsKeyJustPressed(ebiten.KeyF2)
+}

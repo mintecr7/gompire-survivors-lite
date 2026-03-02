@@ -136,6 +136,11 @@ go run ./cmd/game
 - `F9`: load snapshot (`.dist/snapshot.json`)
 - `F6`: save replay (`.dist/replay.json`)
 - `F10`: load + start replay (`.dist/replay.json`)
+- `F7`: stop and save game (`.dist/savegame.json`)
+- `F8`: load saved game (`.dist/savegame.json`)
+- `C`: continue paused game
+- `F1`: cycle character preset
+- `F2`: cycle customization preset
 
 ### Test
 
