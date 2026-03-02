@@ -13,6 +13,12 @@ type XPOrb struct {
 	Value float32
 }
 
+type WeaponDrop struct {
+	Pos  Vec2
+	R    float32
+	Kind WeaponKind
+}
+
 type MsgInput struct{ Input input.State }
 
 type World struct {
@@ -22,6 +28,7 @@ type World struct {
 
 	Cfg     Config
 	Orbs    []XPOrb
+	Drops   []WeaponDrop
 	Player  Player
 	Enemies []Enemy
 
@@ -33,8 +40,10 @@ type World struct {
 	rngCalls   uint64
 
 	// attack visualization
-	LastAttackPos Vec2
-	LastAttackT   float32
+	LastAttackPos    Vec2
+	LastAttackT      float32
+	LastAttackRadius float32
+	LastAttackWeapon WeaponKind
 
 	// run state
 	TimeSurvived float32
@@ -75,6 +84,7 @@ type Player struct {
 	AttackTimer    float32 // counts down to 0
 	AttackRange    float32
 	Damage         float32
+	Weapon         WeaponKind
 
 	// health / damage taken
 	HP           float32

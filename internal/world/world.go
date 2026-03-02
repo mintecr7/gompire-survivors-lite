@@ -43,6 +43,7 @@ func NewWorld(w, h float32) *World {
 		XP:       0,
 		XPToNext: cfg.XPToNext(1),
 		XPMagnet: 10,
+		Weapon:   WeaponWhip,
 	}
 	return &World{
 		W: w, H: h,
@@ -51,6 +52,7 @@ func NewWorld(w, h float32) *World {
 		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
 		Orbs:       make([]XPOrb, 0, 256),
+		Drops:      make([]WeaponDrop, 0, 32),
 		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng:      rand.New(rand.NewSource(seed)),
@@ -151,6 +153,7 @@ func (w *World) Tick(dt float32) {
 	w.updateKnockback(dt)
 	w.updateContactDamage(dt)
 	w.updateXPOrbs(dt)
+	w.updateWeaponDrops()
 	w.updateShake(dt)
 	w.updateLevelUp()
 	w.submitAIJob(w.aiTick)
@@ -215,6 +218,23 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 			color.RGBA{240, 210, 80, 255},
 			false,
 		)
+	}
+
+	// weapon drops
+	for _, d := range w.Drops {
+		dx := camX + d.Pos.X
+		dy := camY + d.Pos.Y
+		switch d.Kind {
+		case WeaponSpear:
+			vector.StrokeLine(screen, dx-d.R, dy+d.R, dx+d.R, dy-d.R, 2, color.RGBA{110, 220, 255, 255}, false)
+		case WeaponNova:
+			vector.FillCircle(screen, dx, dy, d.R, color.RGBA{230, 90, 220, 220}, false)
+			vector.StrokeCircle(screen, dx, dy, d.R+2, 1, color.RGBA{255, 160, 250, 255}, false)
+		case WeaponFang:
+			vector.FillRect(screen, dx-d.R*0.5, dy-d.R, d.R, d.R*2, color.RGBA{255, 120, 120, 255}, false)
+		default:
+			vector.FillRect(screen, dx-d.R, dy-d.R*0.35, d.R*2, d.R*0.7, color.RGBA{255, 220, 120, 255}, false)
+		}
 	}
 
 	// Enemy rendering with visual variety
@@ -349,16 +369,28 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 		}
 
 		alpha := uint8(255 * t)
-		vector.StrokeLine(
-			screen,
-			camX+w.Player.Pos.X,
-			camY+w.Player.Pos.Y,
-			camX+w.LastAttackPos.X,
-			camY+w.LastAttackPos.Y,
-			2, // line width
-			color.RGBA{255, 255, 100, alpha},
-			false,
-		)
+		if w.LastAttackWeapon == WeaponNova {
+			vector.StrokeCircle(
+				screen,
+				camX+w.Player.Pos.X,
+				camY+w.Player.Pos.Y,
+				w.LastAttackRadius,
+				2,
+				color.RGBA{255, 130, 230, alpha},
+				false,
+			)
+		} else {
+			vector.StrokeLine(
+				screen,
+				camX+w.Player.Pos.X,
+				camY+w.Player.Pos.Y,
+				camX+w.LastAttackPos.X,
+				camY+w.LastAttackPos.Y,
+				2, // line width
+				color.RGBA{255, 255, 100, alpha},
+				false,
+			)
+		}
 	}
 
 	// draw player
@@ -400,11 +432,12 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
-		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nKills: %d\nEnemies: %d  Orbs: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nWeapon: %s\nKills: %d\nEnemies: %d  Orbs: %d  Drops: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
 		w.Player.Level, w.Player.XP, w.Player.XPToNext,
+		weaponDef(w.Player.Weapon).Name,
 		w.Stats.EnemiesKilled,
-		len(w.Enemies), len(w.Orbs),
+		len(w.Enemies), len(w.Orbs), len(w.Drops),
 		w.spawnEvery,
 		w.TimeSurvived,
 	)
