@@ -15,6 +15,7 @@ type Config struct {
 	PlayerRadius         float32
 	PlayerSpeed          float32
 	PlayerMaxHP          float32
+	PlayerMaxHPCap       float32
 	PlayerHurtCooldown   float32
 	PlayerLevelUpHeal    float32
 	PlayerAttackCooldown float32
@@ -75,6 +76,7 @@ func DefaultConfig() Config {
 		PlayerRadius:         10,
 		PlayerSpeed:          260,
 		PlayerMaxHP:          100,
+		PlayerMaxHPCap:       200,
 		PlayerHurtCooldown:   0.35,
 		PlayerLevelUpHeal:    15,
 		PlayerAttackCooldown: 0.45,

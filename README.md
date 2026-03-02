@@ -167,7 +167,7 @@ goroutines push inputs to the server's world loop.
 
 - **✅** **v0.1**: basic loop (move, spawn, hit, die, level up)
 - **✅** **v0.2**: async asset loader + telemetry goroutine
-- \***\*✅** v0.3\*\*: worker pool for AI intent/jobs
+- **✅** **v0.3**: worker pool for AI intent/jobs
 - **v0.4**: persistence + replay experiments
 - **v1.0**: "fun enough" release (balance + polish)
 
