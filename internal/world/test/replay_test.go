@@ -70,3 +70,74 @@ func TestSaveLoadReplayFileRoundTrip(t *testing.T) {
 		t.Fatalf("replay mismatch after save/load\n got: %#v\nwant: %#v", got, want)
 	}
 }
+
+func TestReplayFramesReproduceFinalSnapshot(t *testing.T) {
+	const dt = float32(1.0 / 60.0)
+
+	original := world.NewWorld(2000, 2000)
+	defer original.Close()
+
+	initial := original.BuildSnapshot()
+	frames := deterministicReplayFrames()
+
+	runReplayFrames(original, frames, dt)
+	wantFinal := original.BuildSnapshot()
+
+	replayed := world.NewWorld(1, 1)
+	defer replayed.Close()
+
+	if err := replayed.ApplySnapshot(initial); err != nil {
+		t.Fatalf("ApplySnapshot failed: %v", err)
+	}
+
+	runReplayFrames(replayed, frames, dt)
+	gotFinal := replayed.BuildSnapshot()
+
+	if !reflect.DeepEqual(gotFinal, wantFinal) {
+		t.Fatalf("replay did not reproduce final snapshot\n got: %#v\nwant: %#v", gotFinal, wantFinal)
+	}
+}
+
+func runReplayFrames(w *world.World, frames []world.ReplayFrame, dt float32) {
+	for _, frame := range frames {
+		w.Enqueue(world.MsgInput{Input: frame.Input})
+		if frame.Restart {
+			w.Enqueue(world.MsgRestart{})
+		}
+		if frame.TogglePause {
+			w.Enqueue(world.MsgTogglePause{})
+		}
+		if frame.Choose == 0 || frame.Choose == 1 {
+			w.Enqueue(world.MsgChooseUpgrade{Choice: frame.Choose})
+		}
+		w.Tick(dt)
+	}
+}
+
+func deterministicReplayFrames() []world.ReplayFrame {
+	frames := make([]world.ReplayFrame, 0, 180)
+
+	for tick := uint64(0); tick < 180; tick++ {
+		frame := world.ReplayFrame{Tick: tick, Choose: -1}
+
+		switch {
+		case tick < 45:
+			frame.Input = input.State{Right: true}
+		case tick < 90:
+			frame.Input = input.State{Down: true}
+		case tick < 135:
+			frame.Input = input.State{Left: true, Down: true}
+		default:
+			frame.Input = input.State{Up: true}
+		}
+
+		// Brief pause window exercises replay of control messages too.
+		if tick == 60 || tick == 70 {
+			frame.TogglePause = true
+		}
+
+		frames = append(frames, frame)
+	}
+
+	return frames
+}
