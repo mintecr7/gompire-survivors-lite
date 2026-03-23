@@ -12,6 +12,12 @@ Planned progression:
 2. **Authoritative multiplayer arena** (successor repo / major milestone)
 3. **Doom-like project** (long-term)
 
+Current status:
+
+- Core `v0.1` to `v0.4` foundations are implemented.
+- The project is now in the "polish + expand gameplay" stage: richer content,
+  procedural systems, balancing, and cleanup.
+
 ---
 
 ## Why this exists
@@ -62,27 +68,38 @@ A playable 5–10 minute loop:
 
 ---
 
-## Concurrency milestones
+## Milestone status
 
-### v0.1 — Stable baseline
+### v0.1 — Stable baseline (`done`)
 
 - single-threaded `World.Tick()`
-- event/message channel into the world
+- fixed-step deterministic simulation
+- channel-backed message inbox into the world
 
-### v0.2 — Async assets + telemetry
+### v0.2 — Async assets + telemetry (`done`)
 
 - asset loader goroutine (requests/results channels)
 - metrics/logging goroutine (batching)
+- async asset handoff used by rendering
 
-### v0.3 — Worker pool jobs
+### v0.3 — Worker pool jobs (`done`)
 
 - AI intent jobs (compute decisions off-thread)
 - results applied by world on the next tick
+- richer role-based enemy intent payloads
 
-### v0.4 — Persistence + replay
+### v0.4 — Persistence + replay foundation (`implemented`)
 
 - save/load snapshots
-- deterministic replay experiments (optional)
+- replay record/playback
+- savegame/profile/highscores
+- determinism + persistence tests
+
+### Next focus
+
+- procedural generation (waves/maps)
+- more enemy/weapon/content variety
+- balancing, polish, and render split cleanup
 
 ---
 
@@ -99,14 +116,18 @@ A playable 5–10 minute loop:
 
 The repo currently looks like this:
 
-`/cmd/game` - main entrypoint (Ebiten run loop) `/internal/game` - fixed-step
-game integration, input handling, asset polling `/internal/world` -
-deterministic world state, systems, combat, leveling, drawing
-`/internal/assets` - async asset loader (request/result channels)
-`/internal/telemetry` - telemetry sink/batching prototype
-`/internal/shared/input` - shared input state types
-`/internal/commons/logger_config` - shared structured logger setup
-`/internal/render` - render package placeholder (future split from world)
+- `/cmd/game` - main entrypoint (Ebiten run loop)
+- `/internal/game` - fixed-step integration, replay/save/profile glue
+- `/internal/world` - deterministic world state, systems, combat, leveling,
+  snapshot/replay support, drawing
+- `/internal/jobs` - worker-pool AI intent jobs
+- `/internal/assets` - async asset loader and embedded asset fallback
+- `/internal/telemetry` - telemetry sink/batching
+- `/internal/shared/input` - shared input state types
+- `/internal/render` - render package placeholder (future split from world)
+- `/internal/replay` - replay-related package space for future expansion
+- `/internal/commons/logger_config` - shared structured logger setup
+- `/internal/*/test` - per-module test packages
 
 ---
 
@@ -144,6 +165,9 @@ go run ./cmd/game
 
 ### Test
 
+Tests live in per-module `test/` directories such as `internal/world/test` and
+`internal/game/test`.
+
 ```bash
 go test ./...
 ```
@@ -156,7 +180,7 @@ go test ./...
 
 One goroutine owns all state.
 
-External inputs arrive as messages.
+External inputs arrive through a buffered inbox channel.
 
 Tick loop processes:
 
@@ -173,7 +197,9 @@ goroutines push inputs to the server's world loop.
 - **✅** **v0.1**: basic loop (move, spawn, hit, die, level up)
 - **✅** **v0.2**: async asset loader + telemetry goroutine
 - **✅** **v0.3**: worker pool for AI intent/jobs
-- **v0.4**: persistence + replay experiments
+- **✅** **v0.4 foundation**: snapshots, replay, savegame/profile/highscores,
+  and determinism coverage
+- **Next**: procedural generation, more content, balance, and render cleanup
 - **v1.0**: "fun enough" release (balance + polish)
 
 ### Successor Repo
