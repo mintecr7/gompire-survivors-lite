@@ -1,4 +1,4 @@
-package game
+package game_test
 
 import (
 	"os"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"horde-lab/internal/game"
 	"horde-lab/internal/world"
 )
 
@@ -17,12 +18,12 @@ func TestLoadProfileNormalizesDefaults(t *testing.T) {
 		t.Fatalf("write profile fixture: %v", err)
 	}
 
-	got, err := loadProfile(path)
+	got, err := game.LoadProfile(path)
 	if err != nil {
-		t.Fatalf("loadProfile failed: %v", err)
+		t.Fatalf("LoadProfile failed: %v", err)
 	}
 
-	want := defaultProfile()
+	want := game.DefaultProfile()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalized profile mismatch\n got: %#v\nwant: %#v", got, want)
 	}
@@ -36,11 +37,11 @@ func TestSaveGameRoundTrip(t *testing.T) {
 	w.Player.Weapon = world.WeaponSpear
 	w.TimeSurvived = 42.5
 
-	want := SaveGame{
-		Version: saveGameVersion,
+	want := game.SaveGame{
+		Version: 1,
 		SavedAt: time.Date(2026, time.March, 23, 12, 0, 0, 0, time.UTC),
-		Profile: PlayerProfile{
-			Version:       profileVersion,
+		Profile: game.PlayerProfile{
+			Version:       game.DefaultProfile().Version,
 			Name:          "Hunter",
 			Character:     "yuri_han",
 			Customization: "Azure",
@@ -49,13 +50,13 @@ func TestSaveGameRoundTrip(t *testing.T) {
 	}
 
 	path := filepath.Join(t.TempDir(), "savegame.json")
-	if err := saveSaveGame(path, want); err != nil {
-		t.Fatalf("saveSaveGame failed: %v", err)
+	if err := game.SaveSaveGame(path, want); err != nil {
+		t.Fatalf("SaveSaveGame failed: %v", err)
 	}
 
-	got, err := loadSaveGame(path)
+	got, err := game.LoadSaveGame(path)
 	if err != nil {
-		t.Fatalf("loadSaveGame failed: %v", err)
+		t.Fatalf("LoadSaveGame failed: %v", err)
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -64,31 +65,31 @@ func TestSaveGameRoundTrip(t *testing.T) {
 }
 
 func TestHighscoresSortAndRoundTrip(t *testing.T) {
-	entries := []HighscoreEntry{
+	entries := []game.HighscoreEntry{
 		{Name: "B", Score: 900, Kills: 12, TimeSurvived: 55},
 		{Name: "A", Score: 1200, Kills: 10, TimeSurvived: 40},
 		{Name: "C", Score: 900, Kills: 15, TimeSurvived: 30},
 	}
 
-	sortHighscores(entries)
+	game.SortHighscores(entries)
 
 	if entries[0].Name != "A" || entries[1].Name != "C" || entries[2].Name != "B" {
 		t.Fatalf("unexpected highscore order: %#v", entries)
 	}
 
-	want := HighscoreFile{
-		Version: highscoreVersion,
+	want := game.HighscoreFile{
+		Version: 1,
 		Entries: entries,
 	}
 
 	path := filepath.Join(t.TempDir(), "highscores.json")
-	if err := saveHighscores(path, want); err != nil {
-		t.Fatalf("saveHighscores failed: %v", err)
+	if err := game.SaveHighscores(path, want); err != nil {
+		t.Fatalf("SaveHighscores failed: %v", err)
 	}
 
-	got, err := loadHighscores(path)
+	got, err := game.LoadHighscores(path)
 	if err != nil {
-		t.Fatalf("loadHighscores failed: %v", err)
+		t.Fatalf("LoadHighscores failed: %v", err)
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -103,9 +104,9 @@ func TestCalcScore(t *testing.T) {
 		TimeSurvived: 12.3,
 	}
 
-	got := calcScore(s)
+	got := game.CalcScore(s)
 	want := 7*100 + 4*50 + 123
 	if got != want {
-		t.Fatalf("calcScore mismatch: got %d want %d", got, want)
+		t.Fatalf("CalcScore mismatch: got %d want %d", got, want)
 	}
 }
