@@ -24,6 +24,8 @@ type AssetProvider interface {
 	Get(key string) *ebiten.Image
 }
 
+const worldInboxCapacity = 256
+
 func NewWorld(w, h float32) *World {
 	cfg := DefaultConfig()
 	const seed int64 = 1
@@ -49,6 +51,9 @@ func NewWorld(w, h float32) *World {
 	return &World{
 		W: w, H: h,
 		Cfg: cfg,
+
+		inboxCh:  make(chan Msg, worldInboxCapacity),
+		inboxBuf: make([]Msg, 0, 16),
 
 		Player:     pl,
 		Enemies:    make([]Enemy, 0, 256),
@@ -84,51 +89,19 @@ func (w *World) Close() {
 }
 
 func (w *World) Enqueue(m Msg) {
-	w.inbox = append(w.inbox, m)
+	if w.inboxCh == nil {
+		return
+	}
+	w.inboxCh <- m
 }
 
 func (w *World) Tick(dt float32) {
 	// Allow input processing even if game is over (e.g., restart, game options/setting for later)
-	for _, m := range w.inbox {
-		switch msg := m.(type) {
-		case MsgInput:
-			// Prevent movement during pause, game over, or upgrade selection
-			if !w.GameOver && !w.Upgrade.Active && !w.Paused {
-
-				w.applyInput(dt, msg.Input)
-			}
-		case MsgChooseUpgrade:
-			if !w.GameOver {
-				w.applyUpGradeChoice(msg.Choice)
-			}
-		case MsgRestart:
-			if w.GameOver || w.Paused {
-				w.Reset()
-			}
-		case MsgTogglePause:
-			if !w.GameOver && !w.Upgrade.Active {
-				w.Paused = !w.Paused
-			}
-		case MsgSaveSnapshot:
-			err := w.SaveSnapshot(msg.Path)
-			if msg.Reply != nil {
-				select {
-				case msg.Reply <- err:
-				default:
-				}
-			}
-		case MsgLoadSnapshot:
-			err := w.LoadSnapshot(msg.Path)
-			if msg.Reply != nil {
-				select {
-				case msg.Reply <- err:
-				default:
-				}
-			}
-		}
-
+	w.drainInbox()
+	for _, m := range w.inboxBuf {
+		w.handleMsg(m, dt)
 	}
-	w.inbox = w.inbox[:0]
+	w.inboxBuf = w.inboxBuf[:0]
 	w.drainAIResults()
 
 	// stop simulating during game over or menu
@@ -162,6 +135,58 @@ func (w *World) Tick(dt float32) {
 	w.updateShake(dt)
 	w.updateLevelUp()
 	w.submitAIJob(w.aiTick)
+}
+
+func (w *World) drainInbox() {
+	if w.inboxBuf != nil {
+		w.inboxBuf = w.inboxBuf[:0]
+	}
+	for {
+		select {
+		case m := <-w.inboxCh:
+			w.inboxBuf = append(w.inboxBuf, m)
+		default:
+			return
+		}
+	}
+}
+
+func (w *World) handleMsg(m Msg, dt float32) {
+	switch msg := m.(type) {
+	case MsgInput:
+		// Prevent movement during pause, game over, or upgrade selection
+		if !w.GameOver && !w.Upgrade.Active && !w.Paused {
+			w.applyInput(dt, msg.Input)
+		}
+	case MsgChooseUpgrade:
+		if !w.GameOver {
+			w.applyUpGradeChoice(msg.Choice)
+		}
+	case MsgRestart:
+		if w.GameOver || w.Paused {
+			w.Reset()
+		}
+	case MsgTogglePause:
+		if !w.GameOver && !w.Upgrade.Active {
+			w.Paused = !w.Paused
+		}
+	case MsgSaveSnapshot:
+		err := w.SaveSnapshot(msg.Path)
+		if msg.Reply != nil {
+			select {
+			case msg.Reply <- err:
+			default:
+			}
+		}
+	case MsgLoadSnapshot:
+		err := w.LoadSnapshot(msg.Path)
+		if msg.Reply != nil {
+			select {
+			case msg.Reply <- err:
+			default:
+			}
+		}
+	}
 }
 
 func (w *World) applyInput(dt float32, in input.State) {
