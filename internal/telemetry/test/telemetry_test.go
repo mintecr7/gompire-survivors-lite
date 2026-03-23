@@ -1,31 +1,31 @@
-package telemetry
+package telemetry_test
 
 import (
 	"testing"
 	"time"
+
+	"horde-lab/internal/telemetry"
 )
 
 func TestSinkBatchesEvents(t *testing.T) {
-	out := make(chan Batch, 8)
-	s := newSink(10*time.Millisecond, func(b Batch) {
+	out := make(chan telemetry.Batch, 8)
+	s := telemetry.NewSinkWithEmitter(10*time.Millisecond, func(b telemetry.Batch) {
 		out <- b
 	})
 	defer s.Close()
 
-	s.In <- Event{Kind: "kill", I: 2, At: time.Now()}
-	s.In <- Event{Kind: "damage", F: 3.5, At: time.Now()}
-	s.In <- Event{Kind: "frame", F: 0.016, At: time.Now()}
-	s.In <- Event{Kind: "frame", F: 0.018, At: time.Now()}
+	s.In <- telemetry.Event{Kind: "kill", I: 2, At: time.Now()}
+	s.In <- telemetry.Event{Kind: "damage", F: 3.5, At: time.Now()}
+	s.In <- telemetry.Event{Kind: "frame", F: 0.016, At: time.Now()}
+	s.In <- telemetry.Event{Kind: "frame", F: 0.018, At: time.Now()}
 
 	deadline := time.After(700 * time.Millisecond)
 	for {
 		select {
 		case b := <-out:
-			// Ignore empty periodic flushes; validate the first non-empty batch.
 			if b.Kills == 0 && b.Dmg == 0 && b.Frames == 0 {
 				continue
 			}
-
 			if b.Kills != 2 {
 				t.Fatalf("kills mismatch: got %d want %d", b.Kills, 2)
 			}
@@ -39,7 +39,6 @@ func TestSinkBatchesEvents(t *testing.T) {
 				t.Fatalf("avg dt mismatch: got %.6f want %.6f", b.AvgDt, 0.017)
 			}
 			return
-
 		case <-deadline:
 			t.Fatal("timed out waiting for telemetry batch")
 		}
@@ -47,7 +46,7 @@ func TestSinkBatchesEvents(t *testing.T) {
 }
 
 func TestSinkCloseIsIdempotent(t *testing.T) {
-	s := newSink(10*time.Millisecond, nil)
+	s := telemetry.NewSinkWithEmitter(10*time.Millisecond, nil)
 
 	done := make(chan struct{})
 	go func() {

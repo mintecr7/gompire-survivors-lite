@@ -1,22 +1,24 @@
-package jobs
+package jobs_test
 
 import (
 	"testing"
 	"time"
+
+	"horde-lab/internal/jobs"
 )
 
 func TestComputeIntents(t *testing.T) {
-	req := IntentRequest{
+	req := jobs.IntentRequest{
 		Tick:    42,
 		PlayerX: 10,
 		PlayerY: 0,
-		Enemies: []EnemySnapshot{
-			{EnemyID: 1, Role: EnemyRoleNormal, X: 0, Y: 0, Radius: 9},
-			{EnemyID: 2, Role: EnemyRoleRunner, X: 10, Y: 0, Radius: 7},
+		Enemies: []jobs.EnemySnapshot{
+			{EnemyID: 1, Role: jobs.EnemyRoleNormal, X: 0, Y: 0, Radius: 9},
+			{EnemyID: 2, Role: jobs.EnemyRoleRunner, X: 10, Y: 0, Radius: 7},
 		},
 	}
 
-	got := ComputeIntents(req)
+	got := jobs.ComputeIntents(req)
 
 	if got.Tick != 42 {
 		t.Fatalf("tick mismatch: got %d want %d", got.Tick, 42)
@@ -29,8 +31,8 @@ func TestComputeIntents(t *testing.T) {
 	if i0.EnemyID != 1 || !almostEq(i0.MoveX, 1) || !almostEq(i0.MoveY, 0) {
 		t.Fatalf("unexpected first intent: %+v", i0)
 	}
-	if i0.Mode != IntentModePressure {
-		t.Fatalf("unexpected mode for first intent: got %d want %d", i0.Mode, IntentModePressure)
+	if i0.Mode != jobs.IntentModePressure {
+		t.Fatalf("unexpected mode for first intent: got %d want %d", i0.Mode, jobs.IntentModePressure)
 	}
 	if !almostEq(i0.PreferredRange, 65) {
 		t.Fatalf("unexpected preferred range for first intent: got %.2f", i0.PreferredRange)
@@ -43,8 +45,8 @@ func TestComputeIntents(t *testing.T) {
 	if i1.EnemyID != 2 {
 		t.Fatalf("unexpected second intent: %+v", i1)
 	}
-	if i1.Mode != IntentModeKite {
-		t.Fatalf("unexpected mode for second intent: got %d want %d", i1.Mode, IntentModeKite)
+	if i1.Mode != jobs.IntentModeKite {
+		t.Fatalf("unexpected mode for second intent: got %d want %d", i1.Mode, jobs.IntentModeKite)
 	}
 	if !almostEq(i1.SpeedScale, 1.28) {
 		t.Fatalf("unexpected speed scale for second intent: got %.2f", i1.SpeedScale)
@@ -55,15 +57,15 @@ func TestComputeIntents(t *testing.T) {
 }
 
 func TestIntentPoolDeliversResults(t *testing.T) {
-	pool := NewIntentPool(2, 8)
+	pool := jobs.NewIntentPool(2, 8)
 	defer pool.Close()
 
-	req := IntentRequest{
+	req := jobs.IntentRequest{
 		Tick:    7,
 		PlayerX: 8,
 		PlayerY: -2,
-		Enemies: []EnemySnapshot{
-			{EnemyID: 5, Role: EnemyRoleTank, X: 1, Y: -2, Radius: 14},
+		Enemies: []jobs.EnemySnapshot{
+			{EnemyID: 5, Role: jobs.EnemyRoleTank, X: 1, Y: -2, Radius: 14},
 		},
 	}
 
@@ -80,8 +82,8 @@ func TestIntentPoolDeliversResults(t *testing.T) {
 		if res.Intents[0].EnemyID != 5 {
 			t.Fatalf("enemy id mismatch: got %d want %d", res.Intents[0].EnemyID, 5)
 		}
-		if res.Intents[0].Mode != IntentModeHold {
-			t.Fatalf("unexpected mode: got %d want %d", res.Intents[0].Mode, IntentModeHold)
+		if res.Intents[0].Mode != jobs.IntentModeHold {
+			t.Fatalf("unexpected mode: got %d want %d", res.Intents[0].Mode, jobs.IntentModeHold)
 		}
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timed out waiting for intent result")
