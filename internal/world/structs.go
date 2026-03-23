@@ -32,7 +32,8 @@ type MsgInput struct{ Input input.State }
 type World struct {
 	W, H float32
 
-	inbox []Msg // TODO: use channel
+	inboxCh  chan Msg
+	inboxBuf []Msg
 
 	Cfg     Config
 	Orbs    []XPOrb
