@@ -10,6 +10,7 @@ type Config struct {
 	RampFactor     float32
 	SoftEnemyCap   int
 	SpawnRadius    float32
+	WaveDuration   float32
 
 	// Player
 	PlayerRadius         float32
@@ -72,6 +73,7 @@ func DefaultConfig() Config {
 		RampFactor:     0.92,
 		SoftEnemyCap:   140,
 		SpawnRadius:    420,
+		WaveDuration:   20,
 
 		PlayerRadius:         10,
 		PlayerSpeed:          260,

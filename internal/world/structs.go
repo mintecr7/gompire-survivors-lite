@@ -29,6 +29,18 @@ type EnemyProjectile struct {
 
 type MsgInput struct{ Input input.State }
 
+type WaveState struct {
+	Index            int     `json:"index"`
+	Label            string  `json:"label"`
+	StartTime        float32 `json:"start_time"`
+	Duration         float32 `json:"duration"`
+	SpawnRateScale   float32 `json:"spawn_rate_scale"`
+	NormalWeight     int     `json:"normal_weight"`
+	RunnerWeight     int     `json:"runner_weight"`
+	TankWeight       int     `json:"tank_weight"`
+	GuaranteedTankAt int     `json:"guaranteed_tank_at"`
+}
+
 type World struct {
 	W, H float32
 
@@ -60,6 +72,7 @@ type World struct {
 	GameOver     bool
 	Paused       bool
 	Upgrade      UpgradeMenu
+	Wave         WaveState
 
 	// stats
 	Stats Stats

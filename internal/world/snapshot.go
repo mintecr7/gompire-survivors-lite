@@ -37,6 +37,7 @@ type Snapshot struct {
 	GameOver     bool        `json:"game_over"`
 	Paused       bool        `json:"paused"`
 	Upgrade      UpgradeMenu `json:"upgrade"`
+	Wave         WaveState   `json:"wave"`
 	Stats        Stats       `json:"stats"`
 
 	ShakeT     float32 `json:"shake_t"`
@@ -85,6 +86,7 @@ func (w *World) BuildSnapshot() Snapshot {
 		GameOver:     w.GameOver,
 		Paused:       w.Paused,
 		Upgrade:      w.Upgrade,
+		Wave:         w.Wave,
 		Stats:        w.Stats,
 
 		ShakeT:     w.ShakeT,
@@ -139,6 +141,10 @@ func (w *World) ApplySnapshot(s Snapshot) error {
 	w.GameOver = s.GameOver
 	w.Paused = s.Paused
 	w.Upgrade = s.Upgrade
+	w.Wave = s.Wave
+	if w.Wave.Index == 0 {
+		w.Wave = buildWaveStateForTime(w.Cfg, w.TimeSurvived, s.RNGSeed)
+	}
 	w.Stats = s.Stats
 
 	w.ShakeT = s.ShakeT
