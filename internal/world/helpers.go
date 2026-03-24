@@ -91,6 +91,7 @@ func (w *World) spawnEnemyNearPlayer() {
 func (w *World) updateDifficulty() {
 	// Ramp based on time survived: every RampEvery seconds reduce spawnEvery by RampFactor
 	cfg := w.Cfg
+	w.updateWaveState()
 	if cfg.RampEvery <= 0 {
 		return
 	}
@@ -98,6 +99,9 @@ func (w *World) updateDifficulty() {
 	steps := int(w.TimeSurvived / cfg.RampEvery)
 
 	target := cfg.BaseSpawnEvery
+	if w.Wave.SpawnRateScale > 0 {
+		target /= w.Wave.SpawnRateScale
+	}
 	for range steps {
 		target *= cfg.RampFactor
 	}
@@ -550,15 +554,21 @@ func (w *World) updateLevelUp() {
 // ============================================================================
 
 func (w *World) chooseEnemyKind() EnemyKind {
-	// deterministic pattern based on spawn count
-	// every 12th is a tank, every 4th is a runner, otherwise normal
-
 	n := w.Stats.EnemiesSpawned + 1
-
-	if n%12 == 0 {
+	if w.Wave.GuaranteedTankAt > 0 && n%w.Wave.GuaranteedTankAt == 0 {
 		return EnemyTank
 	}
-	if n%4 == 0 {
+
+	total := w.Wave.NormalWeight + w.Wave.RunnerWeight + w.Wave.TankWeight
+	if total <= 0 {
+		return EnemyNormal
+	}
+
+	roll := positiveModInt(n*5+w.Wave.Index*7+positiveModInt(int(w.rngSeed), total), total)
+	if roll < w.Wave.TankWeight {
+		return EnemyTank
+	}
+	if roll < w.Wave.TankWeight+w.Wave.RunnerWeight {
 		return EnemyRunner
 	}
 	return EnemyNormal

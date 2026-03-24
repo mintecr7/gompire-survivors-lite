@@ -66,6 +66,8 @@ func NewWorld(w, h float32) *World {
 		rngSeed:  seed,
 		rngCalls: 0,
 
+		Wave: buildWaveState(cfg, 1, seed),
+
 		aiPool:            newAIPool(),
 		aiPendingRequests: make(map[uint64]jobs.IntentRequest, 8),
 		aiReadyResults:    make(map[uint64]jobs.IntentResult, 8),
@@ -510,10 +512,11 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
-		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nWeapon: %s\nKills: %d\nEnemies: %d  Orbs: %d  Drops: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nWeapon: %s\nWave: %d %s (%.1fs)\nKills: %d\nEnemies: %d  Orbs: %d  Drops: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
 		w.Player.Level, w.Player.XP, w.Player.XPToNext,
 		weaponDef(w.Player.Weapon).Name,
+		w.Wave.Index, w.Wave.Label, maxf(0, w.Wave.StartTime+w.Wave.Duration-w.TimeSurvived),
 		w.Stats.EnemiesKilled,
 		len(w.Enemies), len(w.Orbs), len(w.Drops),
 		w.spawnEvery,
