@@ -60,6 +60,7 @@ func NewWorld(w, h float32) *World {
 		Orbs:       make([]XPOrb, 0, 256),
 		Drops:      make([]WeaponDrop, 0, 32),
 		Shots:      make([]EnemyProjectile, 0, 128),
+		Obstacles:  generateObstacles(w, h, cfg, seed, pl.Pos),
 		spawnEvery: cfg.BaseSpawnEvery,
 
 		rng:      rand.New(rand.NewSource(seed)),
@@ -210,15 +211,13 @@ func (w *World) applyInput(dt float32, in input.State) {
 	if dir.X != 0 || dir.Y != 0 {
 		w.Player.Moving = true
 		dir = dir.Norm()
-		w.Player.Pos.X += dir.X * w.Player.Speed * dt
-		w.Player.Pos.Y += dir.Y * w.Player.Speed * dt
+		w.Player.Pos = w.resolveEntityPosition(Vec2{
+			X: w.Player.Pos.X + dir.X*w.Player.Speed*dt,
+			Y: w.Player.Pos.Y + dir.Y*w.Player.Speed*dt,
+		}, w.Player.R)
 	} else {
 		w.Player.Moving = false
 	}
-
-	// clamp to bounds
-	w.Player.Pos.X = clamp(w.Player.Pos.X, 0, w.W)
-	w.Player.Pos.Y = clamp(w.Player.Pos.Y, 0, w.H)
 }
 
 func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
@@ -242,6 +241,15 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 		color.RGBA{30, 30, 36, 255},
 		false, // anti-alias
 	)
+
+	// XP orbs
+	for _, obstacle := range w.Obstacles {
+		ox := camX + obstacle.Pos.X
+		oy := camY + obstacle.Pos.Y
+		vector.FillCircle(screen, ox, oy, obstacle.R, color.RGBA{58, 54, 50, 255}, false)
+		vector.StrokeCircle(screen, ox, oy, obstacle.R+2, 2, color.RGBA{110, 104, 94, 255}, false)
+		vector.StrokeCircle(screen, ox, oy, obstacle.R*0.55, 1, color.RGBA{88, 82, 72, 180}, false)
+	}
 
 	// XP orbs
 	for _, o := range w.Orbs {
@@ -512,13 +520,13 @@ func (w *World) Draw(screen *ebiten.Image, assets AssetProvider) {
 
 	// HUD (top-left, screen space)
 	hud := fmt.Sprintf(
-		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nWeapon: %s\nWave: %d %s (%.1fs)\nKills: %d\nEnemies: %d  Orbs: %d  Drops: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
+		"HP: %.0f/%.0f\nLV: %d  XP: %.0f/%.0f\nWeapon: %s\nWave: %d %s (%.1fs)\nKills: %d\nEnemies: %d  Obstacles: %d\nOrbs: %d  Drops: %d\nSpawnEvery: %.2fs\nTime: %.1fs",
 		w.Player.HP, w.Player.MaxHP,
 		w.Player.Level, w.Player.XP, w.Player.XPToNext,
 		weaponDef(w.Player.Weapon).Name,
 		w.Wave.Index, w.Wave.Label, maxf(0, w.Wave.StartTime+w.Wave.Duration-w.TimeSurvived),
 		w.Stats.EnemiesKilled,
-		len(w.Enemies), len(w.Orbs), len(w.Drops),
+		len(w.Enemies), len(w.Obstacles), len(w.Orbs), len(w.Drops),
 		w.spawnEvery,
 		w.TimeSurvived,
 	)

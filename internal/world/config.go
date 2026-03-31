@@ -4,13 +4,20 @@ import "math"
 
 type Config struct {
 	// World / pacing
-	BaseSpawnEvery float32
-	MinSpawnEvery  float32
-	RampEvery      float32
-	RampFactor     float32
-	SoftEnemyCap   int
-	SpawnRadius    float32
-	WaveDuration   float32
+	BaseSpawnEvery  float32
+	MinSpawnEvery   float32
+	RampEvery       float32
+	RampFactor      float32
+	SoftEnemyCap    int
+	SpawnRadius     float32
+	WaveDuration    float32
+	StartSafeRadius float32
+
+	// Arena generation
+	ObstacleCount     int
+	ObstacleRadiusMin float32
+	ObstacleRadiusMax float32
+	ObstaclePadding   float32
 
 	// Player
 	PlayerRadius         float32
@@ -67,13 +74,19 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{
-		BaseSpawnEvery: 0.75,
-		MinSpawnEvery:  0.20,
-		RampEvery:      15.0,
-		RampFactor:     0.92,
-		SoftEnemyCap:   140,
-		SpawnRadius:    420,
-		WaveDuration:   20,
+		BaseSpawnEvery:  0.75,
+		MinSpawnEvery:   0.20,
+		RampEvery:       15.0,
+		RampFactor:      0.92,
+		SoftEnemyCap:    140,
+		SpawnRadius:     420,
+		WaveDuration:    20,
+		StartSafeRadius: 220,
+
+		ObstacleCount:     8,
+		ObstacleRadiusMin: 28,
+		ObstacleRadiusMax: 54,
+		ObstaclePadding:   6,
 
 		PlayerRadius:         10,
 		PlayerSpeed:          260,
