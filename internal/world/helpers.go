@@ -46,10 +46,6 @@ func (w *World) spawnEnemyNearPlayer() {
 
 	pos := w.Player.Pos.Add(off)
 
-	// Clamp to world bounds so enemies always exist in-world
-	pos.X = clamp(pos.X, 0, w.W)
-	pos.Y = clamp(pos.Y, 0, w.H)
-
 	kind := w.chooseEnemyKind()
 
 	e := Enemy{
@@ -84,6 +80,7 @@ func (w *World) spawnEnemyNearPlayer() {
 		e.TouchDamage = cfg.EnemyTouchDamage
 		e.XPValue = cfg.XPPerKill
 	}
+	e.Pos = w.resolveEntityPosition(pos, e.R)
 	w.Enemies = append(w.Enemies, e)
 	w.Stats.EnemiesSpawned++
 }
@@ -147,11 +144,7 @@ func (w *World) updateEnemies(dt float32, intents map[int]enemyMoveIntent) {
 		if dir.X == 0 && dir.Y == 0 {
 			continue
 		}
-		e.Pos = e.Pos.Add(dir.Mul(e.Speed * speedScale * dt))
-
-		// Clamp
-		e.Pos.X = clamp(e.Pos.X, 0, w.W)
-		e.Pos.Y = clamp(e.Pos.Y, 0, w.H)
+		e.Pos = w.resolveEntityPosition(e.Pos.Add(dir.Mul(e.Speed*speedScale*dt)), e.R)
 	}
 }
 
@@ -391,6 +384,10 @@ func (w *World) updateEnemyProjectiles(dt float32) {
 			w.removeShotAt(i)
 			continue
 		}
+		if w.overlapsObstacle(s.Pos, s.R) {
+			w.removeShotAt(i)
+			continue
+		}
 
 		rr := w.Player.R + s.R
 		if dist2(p, s.Pos) <= rr*rr {
@@ -422,7 +419,7 @@ func (w *World) updateKnockback(dt float32) {
 		return
 	}
 	// integrate
-	w.Player.Pos = w.Player.Pos.Add(kv.Mul(dt))
+	w.Player.Pos = w.resolveEntityPosition(w.Player.Pos.Add(kv.Mul(dt)), w.Player.R)
 
 	// damping (euler integration)
 	d := w.Cfg.PlayerKnockbackDamping
@@ -431,10 +428,6 @@ func (w *World) updateKnockback(dt float32) {
 		f = 0
 	}
 	w.Player.KnockVel = w.Player.KnockVel.Mul(f)
-
-	// clamp + stop tiny velocity
-	w.Player.Pos.X = clamp(w.Player.Pos.X, 0, w.W)
-	w.Player.Pos.Y = clamp(w.Player.Pos.Y, 0, w.H)
 
 	if absf(w.Player.KnockVel.X)+absf(w.Player.KnockVel.Y) < 1 {
 		w.Player.KnockVel = Vec2{}

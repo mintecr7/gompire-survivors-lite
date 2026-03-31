@@ -19,11 +19,12 @@ type Snapshot struct {
 
 	Cfg Config `json:"cfg"`
 
-	Player  Player            `json:"player"`
-	Enemies []Enemy           `json:"enemies"`
-	Orbs    []XPOrb           `json:"orbs"`
-	Drops   []WeaponDrop      `json:"drops"`
-	Shots   []EnemyProjectile `json:"shots"`
+	Player    Player            `json:"player"`
+	Enemies   []Enemy           `json:"enemies"`
+	Orbs      []XPOrb           `json:"orbs"`
+	Drops     []WeaponDrop      `json:"drops"`
+	Shots     []EnemyProjectile `json:"shots"`
+	Obstacles []Obstacle        `json:"obstacles"`
 
 	SpawnTimer float32 `json:"spawn_timer"`
 	SpawnEvery float32 `json:"spawn_every"`
@@ -61,6 +62,8 @@ func (w *World) BuildSnapshot() Snapshot {
 	copy(drops, w.Drops)
 	shots := make([]EnemyProjectile, len(w.Shots))
 	copy(shots, w.Shots)
+	obstacles := make([]Obstacle, len(w.Obstacles))
+	copy(obstacles, w.Obstacles)
 
 	return Snapshot{
 		Version: SnapshotVersion,
@@ -68,11 +71,12 @@ func (w *World) BuildSnapshot() Snapshot {
 		H:       w.H,
 		Cfg:     w.Cfg,
 
-		Player:  w.Player,
-		Enemies: enemies,
-		Orbs:    orbs,
-		Drops:   drops,
-		Shots:   shots,
+		Player:    w.Player,
+		Enemies:   enemies,
+		Orbs:      orbs,
+		Drops:     drops,
+		Shots:     shots,
+		Obstacles: obstacles,
 
 		SpawnTimer: w.spawnTimer,
 		SpawnEvery: w.spawnEvery,
@@ -128,6 +132,11 @@ func (w *World) ApplySnapshot(s Snapshot) error {
 	copy(w.Drops, s.Drops)
 	w.Shots = make([]EnemyProjectile, len(s.Shots))
 	copy(w.Shots, s.Shots)
+	w.Obstacles = make([]Obstacle, len(s.Obstacles))
+	copy(w.Obstacles, s.Obstacles)
+	if len(w.Obstacles) == 0 && w.Cfg.ObstacleCount > 0 {
+		w.Obstacles = generateObstacles(w.W, w.H, w.Cfg, s.RNGSeed, w.Player.Pos)
+	}
 
 	w.spawnTimer = s.SpawnTimer
 	w.spawnEvery = s.SpawnEvery

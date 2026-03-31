@@ -27,6 +27,11 @@ type EnemyProjectile struct {
 	Life   float32
 }
 
+type Obstacle struct {
+	Pos Vec2    `json:"pos"`
+	R   float32 `json:"r"`
+}
+
 type MsgInput struct{ Input input.State }
 
 type WaveState struct {
@@ -47,12 +52,13 @@ type World struct {
 	inboxCh  chan Msg
 	inboxBuf []Msg
 
-	Cfg     Config
-	Orbs    []XPOrb
-	Drops   []WeaponDrop
-	Shots   []EnemyProjectile
-	Player  Player
-	Enemies []Enemy
+	Cfg       Config
+	Orbs      []XPOrb
+	Drops     []WeaponDrop
+	Shots     []EnemyProjectile
+	Obstacles []Obstacle
+	Player    Player
+	Enemies   []Enemy
 
 	// spawning
 	spawnTimer float32
